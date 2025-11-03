@@ -12,29 +12,18 @@ def script(func):
 
 
 @script
-def pull(dockerhub_username="archqua", docker_image="tosk-bot", tag="stable"):
-    pull_template_path = os.path.join(templates_dir, "tosk-bot.pull.template")
-    with open(pull_template_path, "r") as fp:
-        contents = fp.read()
-    formatted = contents.format(
-        dockerhub_username=dockerhub_username,
-        docker_image=docker_image,
-        tag=tag,
-    )
-    print(formatted, end="")
-
-
-@script
-def service(
+def butane(
+    ssh_key,
     telegram_api_token,
     dockerhub_username="archqua",
     docker_image="tosk-bot",
     tag="stable",
 ):
-    service_template_path = os.path.join(templates_dir, "tosk-bot.service.template")
-    with open(service_template_path, "r") as fp:
+    butane_template_path = os.path.join(templates_dir, "tosk-bot-template.bu")
+    with open(butane_template_path, "r") as fp:
         contents = fp.read()
     formatted = contents.format(
+        ssh_key=ssh_key,
         telegram_api_token=telegram_api_token,
         dockerhub_username=dockerhub_username,
         docker_image=docker_image,
