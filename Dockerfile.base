@@ -1,4 +1,6 @@
-FROM python:3.14-slim
+# docker-publish.sh prepends header with LABELs
+# FROM python:3.14-slim
+# the correct usage is {echo "<HEADER>"; cat Dockerfile.base} | docker build ...
 
 WORKDIR /app
 

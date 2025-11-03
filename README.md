@@ -12,11 +12,21 @@ docker run --name tosk-bot \
 docker rmi tosk-bot
 ```
 
-There's a convenience `docker-publish.sh` script to create and push images to dockerhub
-with configurable user name, docker image and tag.
-
 Instead of `-e TOSK_BOT_TELEGRAM_API=...` can use
 `--env-file path/to/pydantic/env`.
+
+There's a convenience `docker-publish.sh` script to create and push images to dockerhub
+with configurable user name, docker image and tag.
+It feeds Dockerfile-stream to `docker build`
+and supplies metadata based on `git` commands output
+--- you should probably only run it after fork
+if you change anything substantially,
+because otherwise it is going to point to the original repo.
+
+To verify metadata run
+```bash
+docker image inspect <USER>/<IMAGE>:<TAG> --format '{{json .Config.Labels}}' | jq
+```
 
 
 ### Create ignition config
