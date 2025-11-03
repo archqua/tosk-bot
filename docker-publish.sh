@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+cleanup() {
+  if [ "${DOCKER_STARTED_BY_SCRIPT:-false}" = true ]; then
+    echo "Stopping Docker service started by script..." >&2
+    sudo systemctl stop docker
+  fi
+}
+trap cleanup EXIT
+
 usage() {
   cat >&2 <<EOF
 Usage: $0 docker-user [pass-store-path|'none']
@@ -20,6 +28,26 @@ PASS_STORE="${2:-hub.docker.com/token}"
 IMAGE_NAME="tosk-bot"
 
 BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD || echo "")
+
+# Check if Docker CLI is installed
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: Docker is not installed or not in PATH." >&2
+  exit 1
+fi
+
+# Check Docker service status
+if systemctl is-active --quiet docker; then
+  :
+else
+  if command -v systemctl >/dev/null 2>&1; then
+    echo "Docker service not running. Starting it now..." >&2
+    sudo systemctl start docker
+    DOCKER_STARTED_BY_SCRIPT=true
+  else
+    echo "Docker does not appear to be running and systemd is not available to start it." >&2
+    exit 1
+  fi
+fi
 
 if [ -z "$BRANCH_NAME" ]; then
   echo "Warning: Could not detect git branch. Using 'undefined' as tag." >&2
@@ -45,19 +73,13 @@ if [ "$PASS_STORE" != "none" ] && command -v pass >/dev/null 2>&1; then
     echo "Error: Password store entry '$PASS_STORE' empty or missing." >&2
     exit 1
   fi
-elif [ "$PASS_STORE" = "none" ]; then
-  if [ -z "${DOCKERHUB_TOKEN:-}" ]; then
-    echo "Error: DOCKERHUB_TOKEN environment variable not set and pass usage disabled." >&2
-    exit 1
-  fi
-  DOCKERHUB_TOKEN="$DOCKERHUB_TOKEN"
 else
-  echo "Warning: 'pass' command not found or PASS_STORE issue. Falling back to DOCKERHUB_TOKEN env var." >&2
-  if [ -z "${DOCKERHUB_TOKEN:-}" ]; then
-    echo "Error: DOCKERHUB_TOKEN environment variable not set." >&2
+  read -s DOCKERHUB_TOKEN
+  echo >&2  # new line after silent input
+  if [ -z "$DOCKERHUB_TOKEN" ]; then
+    echo "Error: No token entered." >&2
     exit 1
   fi
-  DOCKERHUB_TOKEN="$DOCKERHUB_TOKEN"
 fi
 
 # Login securely using password-stdin
