@@ -8,13 +8,13 @@ passwd:
 
 storage:
   files:
-    - path: /etc/tosk-bot/.env
+    - path: /etc/tosk-bot/env
       mode: 0644
       contents:
         inline: |
           TOSK_BOT_TELEGRAM_API_TOKEN={telegram_api_token}
           TOSK_BOT_DEBUG={debug}
-          TOSK_BOT_ALLOWED_HOSTS=localhost
+          TOSK_BOT_ALLOWED_HOSTS=["localhost"]
 systemd:
   units:
     - name: tosk-bot-pull.service
@@ -47,7 +47,7 @@ systemd:
         ExecStartPre=-/usr/bin/docker rm -f tosk-bot
         ExecStart=/usr/bin/docker run --name tosk-bot \
             --log-opt max-size=16m \
-            --env-file /etc/tosk-bot/.env \
+            --env-file /etc/tosk-bot/env \
             {dockerhub_username}/{docker_image}:{tag}
         ExecStop=/usr/bin/docker stop tosk-bot
         
