@@ -15,3 +15,8 @@ poetry run python butane/tosk-bot.py butane \
     "$(pass tosk-bot/api)" | \
     butane --pretty --strict -o path/to/ignition/config.ign
 ```
+
+For more options
+```bash
+poetry run python butane/tosk-bot.py --help
+```
