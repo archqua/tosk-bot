@@ -51,3 +51,18 @@ async def test_help_handler():
     msg.reply_text.assert_awaited()
     text = msg.reply_text.call_args.args[0]
     assert "/start" in text and "/ping" in text and "/help" in text
+
+
+@pytest.mark.asyncio
+async def test_cry_handler():
+    user = User(id=123, first_name="TestUser", is_bot=False)
+    chat = Chat(id=456, type="private")
+    msg = mock.message(text="/cry", chat=chat, from_user=user)
+
+    update = MagicMock(spec=Update)
+    update.message = msg
+
+    ctx = mock.callback_context()
+
+    await H.cry(update, ctx)
+    msg.reply_text.assert_awaited_once_with("😭")
