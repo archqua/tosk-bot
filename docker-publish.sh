@@ -5,7 +5,7 @@ usage() {
   cat >&2 <<EOF
 Usage: $0 docker-user [pass-store-path|'none']
   docker-user       Docker Hub username (required)
-  pass-store-path   pass store path to Docker Hub token (default: dockerhub/password)
+  pass-store-path   pass store path to Docker Hub token (default: hub.docker.com/token)
                       Use 'none' to disable pass and fallback to DOCKERHUB_TOKEN env var.
 EOF
   exit 1
@@ -16,7 +16,7 @@ if [ $# -lt 1 ]; then
 fi
 
 DOCKER_USER="$1"
-PASS_STORE="${2:-dockerhub/password}"
+PASS_STORE="${2:-hub.docker.com/token}"
 IMAGE_NAME="tosk-bot"
 
 BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD || echo "")
