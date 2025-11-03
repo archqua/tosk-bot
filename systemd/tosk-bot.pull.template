@@ -1,0 +1,13 @@
+[Unit]
+Description=Pre-pull Docker image service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 1
+ExecStart=/usr/bin/docker pull {dockerhub_username}/{docker_image}:{tag}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
