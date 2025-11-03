@@ -15,6 +15,7 @@ def script(func):
 def butane(
     ssh_key,
     telegram_api_token,
+    debug=False,
     dockerhub_username="archqua",
     docker_image="tosk-bot",
     tag="stable",
@@ -25,6 +26,7 @@ def butane(
     formatted = contents.format(
         ssh_key=ssh_key,
         telegram_api_token=telegram_api_token,
+        debug=str(debug).lower(),
         dockerhub_username=dockerhub_username,
         docker_image=docker_image,
         tag=tag,
