@@ -11,10 +11,10 @@ trap cleanup EXIT
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 docker-user [pass-store-path|'none']
+Usage: $0 docker-user [pass-store-path|'input']
   docker-user       Docker Hub username (required)
   pass-store-path   pass store path to Docker Hub token (default: hub.docker.com/token)
-                      Use 'none' to disable pass and fallback to DOCKERHUB_TOKEN env var.
+                      Use 'input' to disable pass and write the password interactively.
 EOF
   exit 1
 }
@@ -67,7 +67,7 @@ else
 fi
 
 # Retrieve Docker Hub token
-if [ "$PASS_STORE" != "none" ] && command -v pass >/dev/null 2>&1; then
+if [ "$PASS_STORE" != "input" ] && command -v pass >/dev/null 2>&1; then
   DOCKERHUB_TOKEN=$(pass "$PASS_STORE" 2>/dev/null || echo "")
   if [ -z "$DOCKERHUB_TOKEN" ]; then
     echo "Error: Password store entry '$PASS_STORE' empty or missing." >&2
