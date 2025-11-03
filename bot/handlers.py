@@ -29,6 +29,12 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @handler
+async def cry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Responds with a crying emoji"""
+    await update.message.reply_text("😭")
+
+
+@handler
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Auto-generates help text by listing all registered commands and their docstrings.
