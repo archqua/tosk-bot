@@ -5,17 +5,20 @@ from unittest.mock import AsyncMock, MagicMock
 from base.service import tgio
 from teleapi.teleapi import Update
 
+
 @pytest.mark.asyncio
 async def test_tokenhash_returns_expected_length_and_chars():
     token = "super_secret_token"
     result = tgio.tokenhash(token)
     assert isinstance(result, str)
     assert len(result) in [43, 44]  # typical urlsafe base64 length for SHA-256
-    assert all(c.isalnum() or c in ['-', '_', '='] for c in result)
+    assert all(c.isalnum() or c in ["-", "_", "="] for c in result)
+
 
 @pytest.mark.asyncio
 async def test_input_worker_processes_updates_and_handles_cancel():
     processed_queue = asyncio.Queue(maxsize=1)
+
     async def handler(update):
         await processed_queue.put(update)
 
@@ -34,29 +37,36 @@ async def test_input_worker_processes_updates_and_handles_cancel():
 
     assert processed == [update]
 
+
 @pytest.mark.asyncio
 async def test_input_handle_fetches_updates_and_puts_in_queue(monkeypatch):
     updates = [MagicMock(spec=Update, update_id=i) for i in range(3)]
+
     async def mock_getUpdates(offset, timeout, limit):
         # will return [0, 1], [2], []...
         if offset > 2:
             await asyncio.sleep(timeout)
             return []
-        return updates[offset:offset+2]
+        return updates[offset : offset + 2]
 
-    input_handler = tgio.Input(token="dummy", handler=AsyncMock(), workers=1, queue_size=3)
+    input_handler = tgio.Input(
+        token="dummy", handler=AsyncMock(), workers=1, queue_size=3
+    )
     monkeypatch.setattr(input_handler.teleapi, "getUpdates", mock_getUpdates)
 
     async with asyncio.TaskGroup() as tg:
         task = tg.create_task(input_handler.handle())
-        queued = await asyncio.wait_for(asyncio.gather(*[
-            input_handler.upd_queue.get()
-            for _ in range(len(updates))
-        ]), timeout=0.1)
+        queued = await asyncio.wait_for(
+            asyncio.gather(
+                *[input_handler.upd_queue.get() for _ in range(len(updates))]
+            ),
+            timeout=0.1,
+        )
         task.cancel()
 
     assert input_handler.upd_queue.empty()
     assert all(isinstance(u, MagicMock) for u in queued)
+
 
 @pytest.mark.asyncio
 async def test_output_worker_calls_teleapi_methods_and_handles_cancel(monkeypatch):
@@ -92,14 +102,17 @@ async def test_output_worker_calls_teleapi_methods_and_handles_cancel(monkeypatc
 @pytest.mark.asyncio
 async def test_queue_put_timeout_on_input_handle(monkeypatch, caplog):
     updates = [MagicMock(spec=Update, update_id=i) for i in range(3)]
+
     async def mock_getUpdates(offset, timeout, limit):
         # will return [0, 1], [2], []...
         if offset > 2:
             await asyncio.sleep(timeout)
             return []
-        return updates[offset:offset+2]
+        return updates[offset : offset + 2]
 
-    input_handler = tgio.Input(token="dummy", handler=AsyncMock(), workers=1, queue_size=1)
+    input_handler = tgio.Input(
+        token="dummy", handler=AsyncMock(), workers=1, queue_size=1
+    )
     monkeypatch.setattr(input_handler.teleapi, "getUpdates", mock_getUpdates)
 
     await input_handler.upd_queue.put(MagicMock(update_id=1))
@@ -107,6 +120,7 @@ async def test_queue_put_timeout_on_input_handle(monkeypatch, caplog):
     # Patch handler to block indefinitely, keeping queue full
     async def hang(*args, **kwargs):
         await asyncio.sleep(100)  # pytest timeout is 5 seconds anyway
+
     input_handler.handler = hang
 
     async def limited_handle():
@@ -116,7 +130,10 @@ async def test_queue_put_timeout_on_input_handle(monkeypatch, caplog):
             task.cancel()
 
     await limited_handle()
-    assert any("Input queue is full, discarding incoming update" in r.message for r in caplog.records)
+    assert any(
+        "Input queue is full, discarding incoming update" in r.message
+        for r in caplog.records
+    )
 
 
 @pytest.mark.asyncio

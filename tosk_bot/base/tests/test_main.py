@@ -25,15 +25,22 @@ async def test_rabbitmq_context_connect(monkeypatch):
     mock_queue = AsyncMock()
     monkeypatch.setattr(main.RMQ, "connect_robust", AsyncMock(return_value=mock_conn))
     mock_conn.channel = AsyncMock(return_value=mock_channel)
-    monkeypatch.setattr(mock_channel, "declare_exchange", AsyncMock(return_value=mock_exchange))
-    monkeypatch.setattr(mock_channel, "declare_queue", AsyncMock(return_value=mock_queue))
+    monkeypatch.setattr(
+        mock_channel, "declare_exchange", AsyncMock(return_value=mock_exchange)
+    )
+    monkeypatch.setattr(
+        mock_channel, "declare_queue", AsyncMock(return_value=mock_queue)
+    )
     monkeypatch.setattr(mock_queue, "bind", AsyncMock())
     ctx.settings = MagicMock(rabbitmq_url="amqp://test")
     await ctx.connect("amqp://test")
     mock_conn.channel.assert_awaited_once()
-    mock_channel.declare_exchange.assert_awaited_once_with(ctx.exchange_name, main.RMQ.ExchangeType.TOPIC, durable=True)
+    mock_channel.declare_exchange.assert_awaited_once_with(
+        ctx.exchange_name, main.RMQ.ExchangeType.TOPIC, durable=True
+    )
     mock_channel.declare_queue.assert_awaited_once_with(durable=True)
     mock_queue.bind.assert_awaited_once_with(mock_exchange, routing_key="base.output")
+
 
 @pytest.mark.asyncio
 async def test_publish_user_text_message(monkeypatch):
@@ -55,6 +62,7 @@ async def test_publish_user_text_message(monkeypatch):
     await service.publish_user_text_message(user_message)
     assert service.rmq.exchange.publish.await_count == 2
 
+
 @pytest.mark.asyncio
 async def test_publish_api_response(monkeypatch):
     service = main.Service()
@@ -63,6 +71,7 @@ async def test_publish_api_response(monkeypatch):
     response = tgio.Response(method="sendMessage", contents={"ok": True})
     await service.publish_api_response(response)
     service.rmq.exchange.publish.assert_awaited_once()
+
 
 @pytest.mark.asyncio
 async def test_handle_telegram_update_calls_publish(monkeypatch):
@@ -74,6 +83,7 @@ async def test_handle_telegram_update_calls_publish(monkeypatch):
     await service.handle_telegram_update(update)
     service.publish_user_text_message.assert_awaited_once_with(update.message)
 
+
 @pytest.mark.asyncio
 async def test_handle_telegram_update_unhandled(monkeypatch, caplog):
     service = main.Service()
@@ -84,6 +94,7 @@ async def test_handle_telegram_update_unhandled(monkeypatch, caplog):
         await service.handle_telegram_update(update)
     assert "Unhandled update" in "".join(r.message for r in caplog.records)
 
+
 @pytest.mark.asyncio
 async def test_handle_base_output_message(monkeypatch):
     service = main.Service()
@@ -91,15 +102,19 @@ async def test_handle_base_output_message(monkeypatch):
     service.output_instance.upd_queue = AsyncMock()
     message = MagicMock()
     message.body = b'{"method": "sendMessage", "payload": {"text": "hi"}}'
+
     @asynccontextmanager
     async def message_process(*args, **kwargs):
         yield
+
     message.process = message_process
     await service.handle_base_output_message(message)
     (
-        service.output_instance.upd_queue.put
-        .assert_awaited_once_with(("sendMessage", {"text": "hi"}))
+        service.output_instance.upd_queue.put.assert_awaited_once_with(
+            ("sendMessage", {"text": "hi"})
+        )
     )
+
 
 @pytest.mark.asyncio
 async def test_run_starts_handlers_and_consumes(monkeypatch):
@@ -111,6 +126,7 @@ async def test_run_starts_handlers_and_consumes(monkeypatch):
     # Patch Input, Output instantiation
     async def fake_handle(*args, notify_event=None, **kwargs) -> None:
         notify_event.set()
+
     input_mock, output_mock = MagicMock(), MagicMock()
     input_mock.handle = AsyncMock(side_effect=fake_handle)
     output_mock.handle = AsyncMock(side_effect=fake_handle)

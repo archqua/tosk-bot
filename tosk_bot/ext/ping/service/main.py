@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 class Service:
     def __init__(self):
         self.settings = get_settings()
-        self.exchange_name = "tosk_bot_incomming_messages"  # Same exchange as base service
+        self.exchange_name = (
+            "tosk_bot_incomming_messages"  # Same exchange as base service
+        )
         self.connection = None
         self.channel = None
         self.exchange = None
@@ -44,10 +46,12 @@ class Service:
                     reply = BotReply(
                         chat_id=user_msg.chat_id,
                         reply_to_message_id=user_msg.message_id,
-                        text="pong"
+                        text="pong",
                     )
                     # Publish BotReply as JSON message to exchange
-                    body = json.dumps(reply.model_dump(), default=pydantic_encoder).encode()
+                    body = json.dumps(
+                        reply.model_dump(), default=pydantic_encoder
+                    ).encode()
                     await self.exchange.publish(Message(body=body), routing_key="")
                     logger.info(f"Responded with pong to chat_id={reply.chat_id}")
             except Exception as e:
@@ -58,12 +62,15 @@ class Service:
 
         self.app = ApplicationBuilder().token(None).build()  # No Telegram commands here
         # Consume messages from queue to handle /ping commands (from base service)
-        consumer_task = asyncio.create_task(self.queue.consume(self.handle_ping_message))
+        consumer_task = asyncio.create_task(
+            self.queue.consume(self.handle_ping_message)
+        )
 
         # No Telegram bot polling needed as this extension handles messages from RabbitMQ
 
         logger.info("Ping service started. Waiting for /ping messages.")
         await consumer_task  # Run forever
+
 
 if __name__ == "__main__":
     service = Service()

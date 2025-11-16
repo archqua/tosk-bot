@@ -28,12 +28,12 @@ class RabbitMQContext:
         exchange: Declared exchange.
         queue: Declared queue.
     """
+
     exchange_name: str = "tosk_bot_base_topic"
     connection: RMQ.Connection | None = None
     channel: RMQ.Channel | None = None
     exchange: RMQ.Exchange | None = None
     queue: RMQ.Name | None = None
-
 
     async def connect(self, rabbitmq_url: AnyUrl):
         """
@@ -63,13 +63,13 @@ class Service:
         input_instance: Instance of Input handler for Telegram updates.
         output_instance: Instance of Output handler for sending Telegram responses.
     """
+
     def __init__(self) -> None:
         """Initialize service with configuration and uninitialized handlers."""
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
         self.input_instance = None
         self.output_instance = None
-
 
     async def connect_rabbitmq(self) -> None:
         """
@@ -79,7 +79,6 @@ class Service:
             Any exceptions from RabbitMQ connection failures will propagate.
         """
         await self.rmq.connect(rabbitmq_url=self.settings.rabbitmq_url)
-
 
     async def publish_user_text_message(self, user_message: TG.Message) -> None:
         """
@@ -91,7 +90,9 @@ class Service:
         Raises:
             Exceptions from RabbitMQ publishing are propagated after logging.
         """
-        message_body = json.dumps(user_message.model_dump(), default=pydantic_encoder).encode()
+        message_body = json.dumps(
+            user_message.model_dump(), default=pydantic_encoder
+        ).encode()
         message = RMQ.Message(body=message_body)
         routing_key = "base.input.message.text"
         if user_message.entities is not None and len(user_message.entities) > 0:
@@ -111,7 +112,6 @@ class Service:
             f"Published a {routing_key} message {user_message.message_id}"
             f" from user {sender} to RabbitMQ"
         )
-
 
     async def publish_api_response(self, response: tgio.Response):
         """
@@ -159,7 +159,6 @@ class Service:
             gist = f"{update.update_id}::{'||'.join(present_fields)}"
             logger.info(f"Unhandled update: {gist}")
 
-
     async def handle_telegram_response(self, response: tgio.Response) -> None:
         """
         Async handler for Telegram API responses.
@@ -174,7 +173,6 @@ class Service:
         except Exception as e:
             logger.error(f"Failed to publish api response: {e}")
 
-
     async def tgio_input_handler(self, inp: TG.Update | tgio.Response) -> None:
         """
         Dispatch incoming input to correct handler based on type.
@@ -188,7 +186,6 @@ class Service:
             pass
         else:
             logger.error(f"Failed to handle {type(inp)} input")
-
 
     async def handle_base_output_message(self, message: RMQ.IncomingMessage) -> None:
         """
@@ -210,10 +207,12 @@ class Service:
                 assert payload is not None, "Method call payload is missing"
                 try:
                     await asyncio.wait_for(
-                        self.output_instance.upd_queue.put((
-                            method,
-                            payload,
-                        )),
+                        self.output_instance.upd_queue.put(
+                            (
+                                method,
+                                payload,
+                            )
+                        ),
                         timeout=1,
                     )
                     logger.debug(
@@ -226,7 +225,6 @@ class Service:
                     )
             except Exception as e:
                 logger.error(f"Failed to process reply message: {e}")
-
 
     async def run(self) -> None:
         """
@@ -241,6 +239,7 @@ class Service:
 
         async def input_handler(update: TG.Update | tgio.Response) -> None:
             return await self.tgio_input_handler(update)
+
         # TODO use configuration
         self.input_instance = Input(
             token=self.settings.telegram_api_token,
@@ -253,6 +252,7 @@ class Service:
 
         async def consume_callback(message: RMQ.IncomingMessage) -> None:
             return await self.handle_base_output_message(message)
+
         @asynccontextmanager
         async def consume_queue(
             queue: RMQ.Queue,

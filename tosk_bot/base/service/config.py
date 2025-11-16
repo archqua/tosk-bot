@@ -10,11 +10,14 @@ class Settings(BaseSettings):
     - RABBITMQ_URL       --- RabbitMQ URL
     env_prefix: TOSK_BOT_BASE_
     """
+
     telegram_api_token: str = Field(..., description="Telegram bot API token")
     rabbitmq_url: AnyUrl = Field(..., description="RabbitMQ connection URL")
 
     # TODO configure tgio.Input and tgil.Output instances
-    topic_exchange_timeout: float = Field(1.0, description="Timeout for bus message accept")
+    topic_exchange_timeout: float = Field(
+        1.0, description="Timeout for bus message accept"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

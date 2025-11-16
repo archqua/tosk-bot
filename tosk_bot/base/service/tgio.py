@@ -28,8 +28,8 @@ def tokenhash(token: str) -> str:
     Returns:
         A URL-safe base64-encoded representation of the SHA-256 hash digest.
     """
-    digest = hashlib.sha256(token.encode('utf-8')).digest()
-    urlsafe = base64.urlsafe_b64encode(digest).decode('utf-8')
+    digest = hashlib.sha256(token.encode("utf-8")).digest()
+    urlsafe = base64.urlsafe_b64encode(digest).decode("utf-8")
     return urlsafe
 
 
@@ -41,11 +41,15 @@ class Response(BaseModel):
         method: The name of the Telegram Bot API method called.
         contents: The JSON-serializable payload returned by the API call.
     """
+
     # TODO validate method names via pydantic/dirty-teleapi?
     method: str
     # TODO use type annotation "JSON-serializable"?
     contents: Any
+
+
 Handler = Callable[[Update | Response], Awaitable[None]]
+
 
 class Input:
     """
@@ -58,7 +62,6 @@ class Input:
         upd_queue: Asyncio queue holding incoming updates.
         n_workers: Number of async worker tasks processing updates.
     """
-
 
     def __init__(
         self,
@@ -89,7 +92,6 @@ class Input:
         self.n_workers = workers
         logger.info(f"User input handler created with token_hash = {tokenhash(token)}")
 
-
     async def worker(self, name: str = "input") -> None:
         """
         Asynchronous worker coroutine that continuously processes updates from the queue.
@@ -107,7 +109,6 @@ class Input:
                 self.upd_queue.task_done()
         except asyncio.CancelledError:
             logger.info(f"Cancelled an Input worker '{name}'")
-
 
     async def handle(
         self,
@@ -145,11 +146,15 @@ class Input:
 
                     for update in updates:
                         try:
-                            await asyncio.wait_for(self.upd_queue.put(update), timeout=1)
+                            await asyncio.wait_for(
+                                self.upd_queue.put(update), timeout=1
+                            )
                             logger.debug("Input instance has put an update in queue")
                         except asyncio.TimeoutError:
                             # last resort is discarding updates
-                            logger.error(f"Input queue is full, discarding incoming update {update.update_id}")
+                            logger.error(
+                                f"Input queue is full, discarding incoming update {update.update_id}"
+                            )
                         offset = update.update_id + 1
                         # TODO handle int32 overflow???
             except asyncio.CancelledError:
@@ -163,6 +168,7 @@ Updater = Callable[
     Awaitable[list[APIMethodWithPayload]],
 ]
 
+
 class Output:
     """
     Handles sending outgoing updates asynchronously via teleapi methods.
@@ -174,7 +180,6 @@ class Output:
         response_queue: Optional queue to send asynchronous responses to.
         n_workers: Number of concurrent worker tasks sending updates.
     """
-
 
     def __init__(
         self,
@@ -205,7 +210,6 @@ class Output:
         self.n_workers = workers
         logger.info(f"Bot output handler created with token_hash = {tokenhash(token)}")
 
-
     async def worker(self, name: str = "output") -> None:
         """
         Async worker coroutine that continually sends updates from the queue using teleapi.
@@ -232,10 +236,12 @@ class Output:
                 if self.response_queue is not None:
                     try:
                         await asyncio.wait_for(
-                            self.response_queue.put(Response(
-                                method=method,
-                                contents=response,
-                            )),
+                            self.response_queue.put(
+                                Response(
+                                    method=method,
+                                    contents=response,
+                                )
+                            ),
                             timeout=1,
                         )
                     except asyncio.TimeoutError:
@@ -245,7 +251,6 @@ class Output:
                 self.upd_queue.task_done()
         except asyncio.CancelledError:
             logger.info(f"Cancelled an Output worker '{name}'")
-
 
     async def handle(
         self,

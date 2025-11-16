@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     - RABBITMQ_URL       --- RabbitMQ URL
     env_prefix: TOSK_BOT_EXT_PING_
     """
+
     rabbitmq_url: AnyUrl = Field(..., description="RabbitMQ connection URL")
 
     model_config = SettingsConfigDict(
