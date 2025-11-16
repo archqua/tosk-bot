@@ -12,7 +12,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: false
-        files: ^(bot/.*\.py|tests/.*\.py)$
+        files: ^(service/.*\.py|tests/.*\.py)$
   - repo: https://github.com/psf/black
     rev: 25.9.0  # Use the latest stable Black version
     hooks:
