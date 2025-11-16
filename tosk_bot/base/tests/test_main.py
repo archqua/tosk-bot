@@ -101,7 +101,8 @@ async def test_handle_base_output_message(monkeypatch):
     service.output_instance = MagicMock()
     service.output_instance.upd_queue = AsyncMock()
     message = MagicMock()
-    message.body = b'{"method": "sendMessage", "payload": {"text": "hi"}}'
+    message.body = b'{"text": "hi"}'
+    message.routing_key = "base.output.sendMessage"
 
     @asynccontextmanager
     async def message_process(*args, **kwargs):

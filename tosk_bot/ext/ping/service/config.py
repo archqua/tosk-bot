@@ -10,11 +10,16 @@ class Settings(BaseSettings):
     env_prefix: TOSK_BOT_EXT_PING_
     """
 
-    rabbitmq_url: AnyUrl = Field(..., description="RabbitMQ connection URL")
+    rabbitmq_url: AnyUrl = Field(
+        ...,
+        alias="TOSK_BOT_BASE_RABBITMQ_URL",
+        description="RabbitMQ connection URL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        # env_prefix is given as an example for other extensions
         env_prefix="TOSK_BOT_EXT_PING_",
         extra="ignore",
     )

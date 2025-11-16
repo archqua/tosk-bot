@@ -33,7 +33,7 @@ class RabbitMQContext:
     connection: RMQ.Connection | None = None
     channel: RMQ.Channel | None = None
     exchange: RMQ.Exchange | None = None
-    queue: RMQ.Name | None = None
+    queue: RMQ.Queue | None = None
 
     async def connect(self, rabbitmq_url: AnyUrl):
         """
@@ -199,12 +199,12 @@ class Service:
         """
         async with message.process():
             try:
-                method_with_payload = json.loads(message.body.decode())
+                payload = json.loads(message.body.decode())
+                routing_key = message.routing_key.split(".")
+                # TODO create a dev module with utils
+                # expect base.output.{method}[.{tail}] format
+                method = routing_key[2]
                 # TODO come up with pydantic validation
-                method = method_with_payload.get("method")
-                payload = method_with_payload.get("payload")
-                assert method is not None, "Method to call is not specified"
-                assert payload is not None, "Method call payload is missing"
                 try:
                     await asyncio.wait_for(
                         self.output_instance.upd_queue.put(
@@ -225,6 +225,26 @@ class Service:
                     )
             except Exception as e:
                 logger.error(f"Failed to process reply message: {e}")
+
+    @asynccontextmanager
+    async def consume_queue(
+        self,
+        callback: Callable[[RMQ.IncomingMessage], Awaitable[None]],
+    ):
+        """
+        Async context manager that starts consuming a RabbitMQ queue and ensures graceful cleanup.
+
+        Args:
+            callback: Async callable to process each incoming message.
+
+        Yields:
+            None: Control is yielded to allow awaiting within context.
+        """
+        consumer_tag = await self.rmq.queue.consume(callback)
+        try:
+            yield
+        finally:
+            await self.rmq.queue.cancel(consumer_tag)
 
     async def run(self) -> None:
         """
@@ -250,33 +270,22 @@ class Service:
             response_queue=self.input_instance.upd_queue,
         )
 
-        async def consume_callback(message: RMQ.IncomingMessage) -> None:
-            return await self.handle_base_output_message(message)
-
-        @asynccontextmanager
-        async def consume_queue(
-            queue: RMQ.Queue,
-            callback: Callable[[RMQ.IncomingMessage], Awaitable[None]],
-        ):
-            consumer_tag = await queue.consume(callback)
-            try:
-                yield
-            finally:
-                await queue.cancel(consumer_tag)
-
-        async with consume_queue(self.rmq.queue, consume_callback):
-            async with asyncio.TaskGroup() as task_group:
-                tasks_created = asyncio.Event()
-                task_group.create_task(
-                    self.output_instance.handle(notify_event=tasks_created),
-                )
-                await tasks_created.wait()
-                tasks_created.clear()
-                task_group.create_task(
-                    self.input_instance.handle(notify_event=tasks_created),
-                )
-                await tasks_created.wait()
-                tasks_created.clear()
+        try:
+            async with self.consume_queue(self.handle_base_output_message):
+                async with asyncio.TaskGroup() as task_group:
+                    tasks_created = asyncio.Event()
+                    task_group.create_task(
+                        self.output_instance.handle(notify_event=tasks_created),
+                    )
+                    await tasks_created.wait()
+                    tasks_created.clear()
+                    task_group.create_task(
+                        self.input_instance.handle(notify_event=tasks_created),
+                    )
+                    await tasks_created.wait()
+                    tasks_created.clear()
+        except asyncio.CancelledError:
+            logger.info("Base service cancelled")
 
 
 if __name__ == "__main__":
