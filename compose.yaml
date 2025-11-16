@@ -1,0 +1,32 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"     # AMQP port for Python services
+      - "15672:15672"   # RabbitMQ management UI (optional)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  base-service:
+    image: {username}/tosk-bot-base:latest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TOSK_BOT_BASE_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    restart: unless-stopped
+
+  ping-service:
+    image: {username}/tosk-bot-ext-ping:latest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TOSK_BOT_BASE_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    restart: unless-stopped
