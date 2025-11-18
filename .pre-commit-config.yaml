@@ -8,7 +8,15 @@ repos:
     hooks:
       - id: run-tests
         name: Run tests via Poetry
-        entry: poetry run pytest
+        entry: |
+          bash -c '
+          set -e
+          poetry run pytest tosk_bot/base/tests || exit_code=$?
+          poetry run pytest tosk_bot/ext/ping/tests || exit_code=$?
+          if [ -n "$exit_code" ]; then
+            exit $exit_code
+          fi
+          '
         language: system
         pass_filenames: false
         always_run: false

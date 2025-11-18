@@ -252,6 +252,10 @@ class Output:
         except asyncio.CancelledError:
             logger.info(f"Cancelled an Output worker '{name}'")
 
+    async def request(self, method: str, payload: Any) -> None:
+        # TODO pydantic models for payloads
+        await self.upd_queue.put((method, payload))
+
     async def handle(
         self,
         notify_event: asyncio.Event | None = None,

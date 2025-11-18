@@ -99,7 +99,7 @@ async def test_handle_telegram_update_unhandled(monkeypatch, caplog):
 async def test_handle_base_output_message(monkeypatch):
     service = main.Service()
     service.output_instance = MagicMock()
-    service.output_instance.upd_queue = AsyncMock()
+    service.output_instance.request = AsyncMock()
     message = MagicMock()
     message.body = b'{"text": "hi"}'
     message.routing_key = "base.output.sendMessage"
@@ -111,8 +111,8 @@ async def test_handle_base_output_message(monkeypatch):
     message.process = message_process
     await service.handle_base_output_message(message)
     (
-        service.output_instance.upd_queue.put.assert_awaited_once_with(
-            ("sendMessage", {"text": "hi"})
+        service.output_instance.request.assert_awaited_once_with(
+            "sendMessage", {"text": "hi"}
         )
     )
 

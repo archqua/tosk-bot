@@ -181,9 +181,9 @@ class Service:
             inp: Either Telegram Update or tgio Response.
         """
         if isinstance(inp, TG.Update):
-            pass
+            self.handle_telegram_update(inp)
         elif isinstance(inp, tgio.Response):
-            pass
+            self.handle_telegram_response(inp)
         else:
             logger.error(f"Failed to handle {type(inp)} input")
 
@@ -207,12 +207,7 @@ class Service:
                 # TODO come up with pydantic validation
                 try:
                     await asyncio.wait_for(
-                        self.output_instance.upd_queue.put(
-                            (
-                                method,
-                                payload,
-                            )
-                        ),
+                        self.output_instance.request(method, payload),
                         timeout=1,
                     )
                     logger.debug(

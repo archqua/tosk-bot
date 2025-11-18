@@ -34,4 +34,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 pythonpath = "./tosk_bot"
+# there are repeated test file names in different directories
+addopts = "--import-mode=importlib"
 timeout = 5
