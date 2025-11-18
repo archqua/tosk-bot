@@ -2,12 +2,12 @@ import asyncio
 import base64
 import hashlib
 import logging
-from typing import Any, Awaitable, Callable, Concatenate, ParamSpec
+from typing import Any, Awaitable, Callable
 
-from pydantic import AnyUrl, BaseModel
 import httpx
-from teleapi.teleapi import Update
+from pydantic import AnyUrl, BaseModel
 from teleapi.httpx_transport import httpx_teleapi_factory_async
+from teleapi.teleapi import Update
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ class Input:
                         offset = update.update_id + 1
                         # TODO handle int32 overflow???
             except asyncio.CancelledError:
-                logger.info("Input handling cancelled")
+                logger.info("Cancelling input handling")
                 raise
 
 

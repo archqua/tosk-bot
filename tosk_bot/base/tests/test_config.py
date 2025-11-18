@@ -1,8 +1,8 @@
-import os
-import pytest
 import textwrap
-from pydantic import ValidationError
+
+import pytest
 from base.service.config import Settings, get_settings
+from pydantic import ValidationError
 
 
 def test_env_variables(monkeypatch):
@@ -21,9 +21,9 @@ def test_env_file(tmp_path):
     env_file.write_text(
         textwrap.dedent(
             """
-        TOSK_BOT_BASE_TELEGRAM_API_TOKEN=envfile_token
-        TOSK_BOT_BASE_RABBITMQ_URL=amqp://file_user:file_pass@localhost/
-        """
+            TOSK_BOT_BASE_TELEGRAM_API_TOKEN=envfile_token
+            TOSK_BOT_BASE_RABBITMQ_URL=amqp://file_user:file_pass@localhost/
+            """
         ).strip()
     )
 

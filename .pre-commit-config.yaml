@@ -6,23 +6,31 @@ repos:
       - id: poetry-lock       # Ensures poetry.lock is updated
   - repo: local
     hooks:
-      - id: run-tests
-        name: Run tests via Poetry
-        entry: |
-          bash -c '
-          set -e
-          poetry run pytest tosk_bot/base/tests || exit_code=$?
-          poetry run pytest tosk_bot/ext/ping/tests || exit_code=$?
-          if [ -n "$exit_code" ]; then
-            exit $exit_code
-          fi
-          '
+      - id: test-base
+        name: Base tests
+        entry: poetry run pytest tosk_bot/base
         language: system
         pass_filenames: false
         always_run: false
-        files: ^(tosk_bot/.*/service/.*\.py|tosk_bot/.*/tests/.*\.py)$
+        files: ^(tosk_bot/base/service/.*\.py|tosk_bot/base/tests/.*\.py)$
+      - id: test-ext-ping
+        name: Ping ext test
+        entry: poetry run pytest tosk_bot/ext/ping/tests
+        language: system
+        pass_filenames: false
+        always_run: false
+        files: ^(tosk_bot/ext/ping/service/.*\.py|tosk_bot/ext/ping/tests/.*\.py)$
   - repo: https://github.com/psf/black
     rev: 25.9.0  # Use the latest stable Black version
     hooks:
       - id: black
         language_version: python3.14
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+  - repo: https://github.com/pycqa/isort
+    rev: 6.1.0
+    hooks:
+      - id: isort
+        name: isort (python)

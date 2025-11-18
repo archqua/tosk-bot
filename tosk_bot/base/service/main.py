@@ -1,8 +1,8 @@
 import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 import json
 import logging
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 import aio_pika as RMQ
 from pydantic import AnyUrl
@@ -10,7 +10,7 @@ from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
 
 from .config import get_settings
-from .tgio import Input, Output
+from .tgio import Input, Output, Response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class Service:
             f" from user {sender} to RabbitMQ"
         )
 
-    async def publish_api_response(self, response: tgio.Response):
+    async def publish_api_response(self, response: Response):
         """
         Publish a Telegram API response message to RabbitMQ.
 
@@ -159,7 +159,7 @@ class Service:
             gist = f"{update.update_id}::{'||'.join(present_fields)}"
             logger.info(f"Unhandled update: {gist}")
 
-    async def handle_telegram_response(self, response: tgio.Response) -> None:
+    async def handle_telegram_response(self, response: Response) -> None:
         """
         Async handler for Telegram API responses.
 
@@ -173,7 +173,7 @@ class Service:
         except Exception as e:
             logger.error(f"Failed to publish api response: {e}")
 
-    async def tgio_input_handler(self, inp: TG.Update | tgio.Response) -> None:
+    async def tgio_input_handler(self, inp: TG.Update | Response) -> None:
         """
         Dispatch incoming input to correct handler based on type.
 
@@ -181,9 +181,9 @@ class Service:
             inp: Either Telegram Update or tgio Response.
         """
         if isinstance(inp, TG.Update):
-            self.handle_telegram_update(inp)
-        elif isinstance(inp, tgio.Response):
-            self.handle_telegram_response(inp)
+            await self.handle_telegram_update(inp)
+        elif isinstance(inp, Response):
+            await self.handle_telegram_response(inp)
         else:
             logger.error(f"Failed to handle {type(inp)} input")
 
@@ -209,9 +209,6 @@ class Service:
                     await asyncio.wait_for(
                         self.output_instance.request(method, payload),
                         timeout=1,
-                    )
-                    logger.debug(
-                        f"Output callback has put a {method} call request in queue"
                     )
                 except asyncio.TimeoutError:
                     # last resort is discarding updates
@@ -252,7 +249,7 @@ class Service:
         """
         await self.connect_rabbitmq()
 
-        async def input_handler(update: TG.Update | tgio.Response) -> None:
+        async def input_handler(update: TG.Update | Response) -> None:
             return await self.tgio_input_handler(update)
 
         # TODO use configuration
@@ -267,6 +264,7 @@ class Service:
 
         try:
             async with self.consume_queue(self.handle_base_output_message):
+                logger.info("Started consuming RabbitMQ queue")
                 async with asyncio.TaskGroup() as task_group:
                     tasks_created = asyncio.Event()
                     task_group.create_task(
@@ -274,11 +272,13 @@ class Service:
                     )
                     await tasks_created.wait()
                     tasks_created.clear()
+                    logger.info("Completed Output setup")
                     task_group.create_task(
                         self.input_instance.handle(notify_event=tasks_created),
                     )
                     await tasks_created.wait()
                     tasks_created.clear()
+                    logger.info("Completed Input setup")
         except asyncio.CancelledError:
             logger.info("Base service cancelled")
 

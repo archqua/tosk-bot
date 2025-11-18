@@ -1,9 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from base.service import config, main, tgio
-from teleapi.teleapi import Update
+from teleapi import teleapi as TG
 
 
 @pytest.fixture(autouse=True)
@@ -74,24 +75,24 @@ async def test_publish_api_response(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_telegram_update_calls_publish(monkeypatch):
+async def test_tgio_input_handler_update_calls_publish(monkeypatch):
     service = main.Service()
     monkeypatch.setattr(service, "publish_user_text_message", AsyncMock())
-    update = MagicMock()
+    update = MagicMock(spec=TG.Update)
     update.message = MagicMock()
     update.message.text = "hello"
-    await service.handle_telegram_update(update)
+    await service.tgio_input_handler(update)
     service.publish_user_text_message.assert_awaited_once_with(update.message)
 
 
 @pytest.mark.asyncio
-async def test_handle_telegram_update_unhandled(monkeypatch, caplog):
+async def test_tgio_input_handler_update_unhandled(monkeypatch, caplog):
     service = main.Service()
-    update = MagicMock()
+    update = MagicMock(spec=TG.Update)
     update.message = None
     update.update_id = 99
     with caplog.at_level("INFO"):
-        await service.handle_telegram_update(update)
+        await service.tgio_input_handler(update)
     assert "Unhandled update" in "".join(r.message for r in caplog.records)
 
 
@@ -120,29 +121,49 @@ async def test_handle_base_output_message(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_starts_handlers_and_consumes(monkeypatch):
     service = main.Service()
+
     service.connect_rabbitmq = AsyncMock()
-    monkeypatch.setattr(service, "tgio_input_handler", AsyncMock())
-    monkeypatch.setattr(service, "handle_base_output_message", AsyncMock())
-
-    # Patch Input, Output instantiation
-    async def fake_handle(*args, notify_event=None, **kwargs) -> None:
-        notify_event.set()
-
-    input_mock, output_mock = MagicMock(), MagicMock()
-    input_mock.handle = AsyncMock(side_effect=fake_handle)
-    output_mock.handle = AsyncMock(side_effect=fake_handle)
-    monkeypatch.setattr(main, "Input", lambda **kwargs: input_mock)
-    monkeypatch.setattr(main, "Output", lambda **kwargs: output_mock)
-
-    # Patch RabbitMQ queue.consume
     mock_queue = AsyncMock()
+    service.rmq = AsyncMock()
     service.rmq.queue = mock_queue
-    mock_queue.consume = AsyncMock(return_value="consumer_tag")
+
+    async def mock_consume(callback):
+        await callback()
+
+    mock_queue.consume = AsyncMock(
+        return_value="consumer_tag", side_effect=mock_consume
+    )
     mock_queue.cancel = AsyncMock()
 
-    await service.run()
+    # Create a mock teleapi client with async getUpdates method
+    mock_teleapi_instance = MagicMock()
+    first_call = True
+
+    async def mock_getUpdates(*args, **kwargs):
+        nonlocal first_call
+        if first_call:
+            first_call = False
+            update_mock = MagicMock(spec=TG.Update)
+            update_mock.update_id = 123
+            return [update_mock]
+        else:
+            await asyncio.Future()
+
+    mock_teleapi_instance.getUpdates = AsyncMock(side_effect=mock_getUpdates)
+
+    # Patch the factory to return the mocked teleapi client
+    with patch(
+        "base.service.tgio.httpx_teleapi_factory_async",
+        new=lambda *args, **kwargs: mock_teleapi_instance,
+    ):
+
+        monkeypatch.setattr(service, "tgio_input_handler", AsyncMock())
+        monkeypatch.setattr(service, "handle_base_output_message", AsyncMock())
+
+        # Run service.run with a timeout to prevent indefinite hanging
+        await asyncio.wait_for(service.run(), timeout=0.2)
 
     mock_queue.consume.assert_awaited_once()
     mock_queue.cancel.assert_awaited_once()
-    input_mock.handle.assert_awaited_once()
-    output_mock.handle.assert_awaited_once()
+    service.tgio_input_handler.assert_awaited_once()
+    service.handle_base_output_message.assert_awaited_once()
