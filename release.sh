@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Default values
 TAG=${TAG:-latest}
-USERNAME=${USERNAME:?Error: username required. Usage: ./release.sh -u username [-t tag]}
+USERNAME=""
 
 # Parse options
 while getopts "t:u:h" opt; do
@@ -23,6 +23,11 @@ HELP
   esac
 done
 
+if [ -z "$USERNAME" ]; then
+  echo "Error: username required. Usage: ./release.sh -u username [-t tag]" >&2
+  exit 1
+fi
+
 PYPROJECT_VERSION=$(poetry version -s)
 PROJECT_NAME=$(grep -oP '^name\s*=\s*"\K[^"]+' pyproject.toml)
 DESCRIPTION=$(grep -oP '^description\s*=\s*"\K[^"]+' pyproject.toml || echo "")
@@ -30,7 +35,6 @@ LICENSE=$(grep -oP '^license\s*=\s*"\K[^"]+' pyproject.toml || echo "Unlicense")
 SOURCE_URL=$(git ls-remote --get-url origin 2>/dev/null || echo "")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-# Full OCI Labels
 BUILD_LABELS="\
 --label org.opencontainers.image.title=\"${PROJECT_NAME}\" \
 --label org.opencontainers.image.description=\"${DESCRIPTION}\" \
