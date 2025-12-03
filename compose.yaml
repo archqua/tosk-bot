@@ -36,7 +36,7 @@ services:
         condition: service_healthy
     environment:
       TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
-      TOSK_BOT_BASE_TELEGRAM_API_TOKEN: ${TOSK_BOT_BASE_TELEGRAM_API_TOKEN:-COMPOSE}
+      TOSK_BOT_BASE_TELEGRAM_API_TOKEN: ${TOSK_BOT_BASE_TELEGRAM_API_TOKEN}
     restart: unless-stopped
 
   ping-service:
