@@ -1,11 +1,11 @@
 [project]
 name = "tosk-bot"
 version = "0.2.0"
-description = ""
+description = "Basic bundle of services for Telegram tosk-bot"
 authors = [
     {name = "Peter Zakharov",email = "zakharovpnsd@mail.ru"}
 ]
-license = {text = "Unlicense"}
+license = "Unlicense"
 readme = "README.md"
 requires-python = ">=3.14,<4.0"
 dependencies = [
@@ -29,7 +29,6 @@ dev = [
     "autoflake (>=2.3.1,<3.0.0)",
     "isort (>=7.0.0,<8.0.0)"
 ]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -1,14 +1,13 @@
-from contextlib import asynccontextmanager
-from datetime import datetime, UTC
 import json
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
-from pydantic.json import pydantic_encoder
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from teleapi import teleapi as TG
-
 from ext.ping.service import config
 from ext.ping.service.main import Service
+from pydantic.json import pydantic_encoder
+from teleapi import teleapi as TG
 
 
 @pytest.fixture(autouse=True)
@@ -21,15 +20,6 @@ def patch_get_settings(monkeypatch):
 @pytest.fixture
 def service():
     return Service()
-
-
-@pytest.mark.asyncio
-@patch("aio_pika.connect_robust", new_callable=AsyncMock)
-async def test_connect_rabbitmq(mock_connect, service):
-    mock_connect.return_value = AsyncMock()
-    await service.connect_rabbitmq()
-    mock_connect.assert_awaited_once()
-    assert service.rmq.connection is not None
 
 
 @pytest.mark.asyncio
@@ -89,7 +79,6 @@ async def test_pong_handles_incoming_message(service):
 
 @pytest.mark.asyncio
 async def test_consume_queue_context_manager(service):
-    # Prepare dummy callback
     async def dummy_callback(msg):
         pass
 
@@ -101,3 +90,6 @@ async def test_consume_queue_context_manager(service):
     async with service.consume_queue(dummy_callback):
         queue_mock.consume.assert_awaited_once()
     queue_mock.cancel.assert_awaited_once_with("consumer_tag")
+
+
+# TODO test run

@@ -1,11 +1,12 @@
 import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 import json
 import logging
-from typing import Callable, Awaitable
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 import aio_pika as RMQ
+from aiormq import ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
@@ -42,7 +43,7 @@ class RabbitMQContext:
         Args:
             rabbitmq_url: URL string to connect to RabbitMQ server.
         """
-        self.connection = await RMQ.connect_robust(rabbitmq_url)
+        self.connection = await RMQ.connect_robust(str(rabbitmq_url))
         self.channel = await self.connection.channel()
         self.exchange = await self.channel.declare_exchange(
             self.exchange_name, RMQ.ExchangeType.TOPIC, durable=True
@@ -53,6 +54,22 @@ class RabbitMQContext:
             routing_key="base.input.message.text.cmd.ping",
         )
         logger.info("Connected to RabbitMQ")
+
+    async def disconnect(self) -> None:
+        logger.info("Disconnecting from RabbitMQ")
+        if self.channel:
+            await self.channel.close()
+        if self.connection:
+            await self.connection.close()
+            logger.info("Disconnected from RabbitMQ")
+        else:
+            logger.info("Already disconnected from RabbitMQ")
+
+    @asynccontextmanager
+    async def ctx(self, rabbitmq_url: AnyUrl) -> None:
+        await self.connect(rabbitmq_url)
+        yield
+        await self.disconnect()
 
 
 class Service:
@@ -69,11 +86,17 @@ class Service:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
 
-    async def connect_rabbitmq(self):
+    @asynccontextmanager
+    async def rmq_ctx(self) -> None:
         """
-        Connect to RabbitMQ server via RabbitMQContext.
+        Connects RabbitMQContext using configured URL.
+        Disconnects on context exit.
+
+        Raises:
+            Any exceptions from RabbitMQ connection failures will propagate.
         """
-        await self.rmq.connect(rabbitmq_url=self.settings.rabbitmq_url)
+        async with self.rmq.ctx(rabbitmq_url=self.settings.rabbitmq_url):
+            yield
 
     async def publish_pong(self, chat_id: int, reply_to_message_id: int | None = None):
         """
@@ -86,6 +109,7 @@ class Service:
         method = "sendMessage"
         # TODO waiting for external implementation
         # payload = TG.sendMessagePayload(
+        # TODO TG.Message(...).model_dump()?
         payload = dict(
             chat_id=chat_id,
             text="pong",
@@ -117,7 +141,6 @@ class Service:
                     chat_id=tg_message.chat.id,
                     reply_to_message_id=tg_message.message_id,
                 )
-                logger.info("Processed ping message and responded with pong")
             except Exception as e:
                 logger.error(f"Failed to process ping message: {e}")
 
@@ -139,7 +162,12 @@ class Service:
         try:
             yield
         finally:
-            await self.rmq.queue.cancel(consumer_tag)
+            logger.info("Cancelling queue consumption")
+            try:
+                await self.rmq.queue.cancel(consumer_tag)
+                logger.info("Queue consumption cancelled")
+            except ChannelInvalidStateError as e:
+                logger.warning(f"{e}")
 
     async def run(self) -> None:
         """
@@ -147,16 +175,13 @@ class Service:
 
         Sets up RabbitMQ connection and queue consumption using `consume_queue` context manager.
         """
-        try:
-
-            async def run(self) -> None:
-                await self.connect_rabbitmq()
-
+        async with self.rmq_ctx():
+            try:
                 async with self.consume_queue(self.pong):
                     await asyncio.Future()
 
-        except asyncio.CancelledError:
-            logger.info("Ping extension service canceled")
+            finally:
+                logger.info("Ping extension service canceled")
 
 
 if __name__ == "__main__":

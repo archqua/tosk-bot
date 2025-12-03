@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import aio_pika as RMQ
+from aiormq import ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
@@ -35,21 +36,39 @@ class RabbitMQContext:
     exchange: RMQ.Exchange | None = None
     queue: RMQ.Queue | None = None
 
-    async def connect(self, rabbitmq_url: AnyUrl):
+    async def connect(self, rabbitmq_url: AnyUrl) -> None:
         """
         Connect to RabbitMQ server, declare exchange and queue, and bind queue.
 
         Args:
             rabbitmq_url: URL of the RabbitMQ server.
         """
-        self.connection = await RMQ.connect_robust(self.settings.rabbitmq_url)
+        self.connection = await RMQ.connect_robust(str(rabbitmq_url))
         self.channel = await self.connection.channel()
         self.exchange = await self.channel.declare_exchange(
             self.exchange_name, RMQ.ExchangeType.TOPIC, durable=True
         )
         self.queue = await self.channel.declare_queue(durable=True)
-        await self.queue.bind(self.exchange, routing_key="base.output")
+        await self.queue.bind(self.exchange, routing_key="base.output.*")
         logger.info("Connected to RabbitMQ")
+
+    async def disconnect(self) -> None:
+        logger.info("Disconnecting from RabbitMQ")
+        if self.channel:
+            await self.channel.close()
+        if self.connection:
+            await self.connection.close()
+            logger.info("Disconnected from RabbitMQ")
+        else:
+            logger.info("Already disconnected from RabbitMQ")
+
+    @asynccontextmanager
+    async def ctx(self, rabbitmq_url: AnyUrl) -> None:
+        await self.connect(rabbitmq_url)
+        try:
+            yield
+        finally:
+            await self.disconnect()
 
 
 # TODO exception handling
@@ -71,14 +90,17 @@ class Service:
         self.input_instance = None
         self.output_instance = None
 
-    async def connect_rabbitmq(self) -> None:
+    @asynccontextmanager
+    async def rmq_ctx(self) -> None:
         """
         Connects RabbitMQContext using configured URL.
+        Disconnects on context exit.
 
         Raises:
             Any exceptions from RabbitMQ connection failures will propagate.
         """
-        await self.rmq.connect(rabbitmq_url=self.settings.rabbitmq_url)
+        async with self.rmq.ctx(rabbitmq_url=self.settings.rabbitmq_url):
+            yield
 
     async def publish_user_text_message(self, user_message: TG.Message) -> None:
         """
@@ -97,8 +119,10 @@ class Service:
         routing_key = "base.input.message.text"
         if user_message.entities is not None and len(user_message.entities) > 0:
             first_entity = user_message.entities[0]
+            begin = first_entity.offset
+            end = begin + first_entity.length
             if first_entity.type == "bot_command":
-                cmd, at, name = first_entity.partition("@")
+                cmd, at, name = user_message.text[begin:end].partition("@")
                 # TODO use getMe api call and check the bot name?
                 cmd = cmd.lstrip("/")
                 routing_key += f".cmd.{cmd}"
@@ -189,7 +213,7 @@ class Service:
 
     async def handle_base_output_message(self, message: RMQ.IncomingMessage) -> None:
         """
-        Process a RabbitMQ 'base.output' message and enqueue it for sending.
+        Process a RabbitMQ 'base.output.*' message and enqueue it for sending.
 
         Args:
             message: IncomingMessage object from aio-pika queue.
@@ -197,6 +221,8 @@ class Service:
         Notes:
             Performs minimal validation and logs errors on malformed messages.
         """
+        # TODO apply some RPC semantics
+        logger.info("Handling Output message")
         async with message.process():
             try:
                 payload = json.loads(message.body.decode())
@@ -206,6 +232,7 @@ class Service:
                 method = routing_key[2]
                 # TODO come up with pydantic validation
                 try:
+                    logger.info(f"Requesting {method} call")
                     await asyncio.wait_for(
                         self.output_instance.request(method, payload),
                         timeout=1,
@@ -236,7 +263,12 @@ class Service:
         try:
             yield
         finally:
-            await self.rmq.queue.cancel(consumer_tag)
+            logger.info("Cancelling queue consumption")
+            try:
+                await self.rmq.queue.cancel(consumer_tag)
+                logger.info("Queue consumption cancelled")
+            except ChannelInvalidStateError as e:
+                logger.warning(f"{e}")
 
     async def run(self) -> None:
         """
@@ -247,40 +279,40 @@ class Service:
 
         This method runs indefinitely until cancelled or an exception occurs.
         """
-        await self.connect_rabbitmq()
 
         async def input_handler(update: TG.Update | Response) -> None:
             return await self.tgio_input_handler(update)
 
-        # TODO use configuration
-        self.input_instance = Input(
-            token=self.settings.telegram_api_token,
-            handler=input_handler,
-        )
-        self.output_instance = Output(
-            token=self.settings.telegram_api_token,
-            response_queue=self.input_instance.upd_queue,
-        )
+        async with self.rmq_ctx():
+            # TODO use configuration
+            self.input_instance = Input(
+                token=self.settings.telegram_api_token,
+                handler=input_handler,
+            )
+            self.output_instance = Output(
+                token=self.settings.telegram_api_token,
+                response_queue=self.input_instance.upd_queue,
+            )
 
-        try:
-            async with self.consume_queue(self.handle_base_output_message):
-                logger.info("Started consuming RabbitMQ queue")
-                async with asyncio.TaskGroup() as task_group:
-                    tasks_created = asyncio.Event()
-                    task_group.create_task(
-                        self.output_instance.handle(notify_event=tasks_created),
-                    )
-                    await tasks_created.wait()
-                    tasks_created.clear()
-                    logger.info("Completed Output setup")
-                    task_group.create_task(
-                        self.input_instance.handle(notify_event=tasks_created),
-                    )
-                    await tasks_created.wait()
-                    tasks_created.clear()
-                    logger.info("Completed Input setup")
-        except asyncio.CancelledError:
-            logger.info("Base service cancelled")
+            try:
+                async with self.consume_queue(self.handle_base_output_message):
+                    logger.info("Started consuming RabbitMQ queue")
+                    async with asyncio.TaskGroup() as task_group:
+                        tasks_created = asyncio.Event()
+                        task_group.create_task(
+                            self.output_instance.handle(notify_event=tasks_created),
+                        )
+                        await tasks_created.wait()
+                        tasks_created.clear()
+                        logger.info("Completed Output setup")
+                        task_group.create_task(
+                            self.input_instance.handle(notify_event=tasks_created),
+                        )
+                        await tasks_created.wait()
+                        tasks_created.clear()
+                        logger.info("Completed Input setup")
+            finally:
+                logger.info("Cancelling base service")
 
 
 if __name__ == "__main__":

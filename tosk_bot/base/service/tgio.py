@@ -107,7 +107,7 @@ class Input:
                 logger.debug(f"Input worker '{name}' got an update from a queue")
                 await self.handler(upd)
                 self.upd_queue.task_done()
-        except asyncio.CancelledError:
+        finally:
             logger.info(f"Cancelled an Input worker '{name}'")
 
     async def handle(
@@ -138,7 +138,9 @@ class Input:
                         timeout=self.timeout,
                         limit=self.limit,
                     )
-                    # is this an empty list or None on timeout?
+                    # having a list of situations when this can happen would be nice
+                    if updates is None:
+                        continue
                     updates = list(updates)
                     nupd = len(updates)
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
@@ -157,9 +159,8 @@ class Input:
                             )
                         offset = update.update_id + 1
                         # TODO handle int32 overflow???
-            except asyncio.CancelledError:
+            finally:
                 logger.info("Cancelling input handling")
-                raise
 
 
 APIMethodWithPayload = tuple[APIMethod, dict[ParameterName, Any]]
@@ -249,7 +250,7 @@ class Output:
                             f"Response queue is full, discarding {method}'s response"
                         )
                 self.upd_queue.task_done()
-        except asyncio.CancelledError:
+        finally:
             logger.info(f"Cancelled an Output worker '{name}'")
 
     async def request(self, method: str, payload: Any) -> None:

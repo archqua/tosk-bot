@@ -14,7 +14,7 @@ services:
       retries: 5
 
   base-service:
-    image: {username}/tosk-bot-base:latest
+    image: ${USERNAME}/tosk-bot-base:${TAG}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   ping-service:
-    image: {username}/tosk-bot-ext-ping:latest
+    image: ${USERNAME}/tosk-bot-ext-ping:${TAG}
     depends_on:
       rabbitmq:
         condition: service_healthy

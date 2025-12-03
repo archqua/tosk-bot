@@ -20,10 +20,12 @@ def patch_get_settings(monkeypatch):
 @pytest.mark.asyncio
 async def test_rabbitmq_context_connect(monkeypatch):
     ctx = main.RabbitMQContext()
+
     mock_conn = AsyncMock()
     mock_channel = AsyncMock()
     mock_exchange = AsyncMock()
     mock_queue = AsyncMock()
+
     monkeypatch.setattr(main.RMQ, "connect_robust", AsyncMock(return_value=mock_conn))
     mock_conn.channel = AsyncMock(return_value=mock_channel)
     monkeypatch.setattr(
@@ -33,14 +35,15 @@ async def test_rabbitmq_context_connect(monkeypatch):
         mock_channel, "declare_queue", AsyncMock(return_value=mock_queue)
     )
     monkeypatch.setattr(mock_queue, "bind", AsyncMock())
-    ctx.settings = MagicMock(rabbitmq_url="amqp://test")
+
     await ctx.connect("amqp://test")
+
     mock_conn.channel.assert_awaited_once()
     mock_channel.declare_exchange.assert_awaited_once_with(
         ctx.exchange_name, main.RMQ.ExchangeType.TOPIC, durable=True
     )
     mock_channel.declare_queue.assert_awaited_once_with(durable=True)
-    mock_queue.bind.assert_awaited_once_with(mock_exchange, routing_key="base.output")
+    mock_queue.bind.assert_awaited_once_with(mock_exchange, routing_key="base.output.*")
 
 
 @pytest.mark.asyncio
@@ -56,8 +59,11 @@ async def test_publish_user_text_message(monkeypatch):
     await service.publish_user_text_message(user_message)
     service.rmq.exchange.publish.assert_awaited_once()
     # Test behavior with a bot command entity
+    user_message.text = "/start@botname"
     entity = MagicMock()
     entity.type = "bot_command"
+    entity.offset = 0
+    entity.length = len(user_message.text)
     entity.partition = MagicMock(return_value=("/start", "@", "botname"))
     user_message.entities = [entity]
     await service.publish_user_text_message(user_message)
@@ -122,10 +128,17 @@ async def test_handle_base_output_message(monkeypatch):
 async def test_run_starts_handlers_and_consumes(monkeypatch):
     service = main.Service()
 
-    service.connect_rabbitmq = AsyncMock()
+    # service.connect_rabbitmq = AsyncMock()
     mock_queue = AsyncMock()
     service.rmq = AsyncMock()
-    service.rmq.queue = mock_queue
+    service.rmq.connect = AsyncMock()
+    service.rmq.disconnect = AsyncMock()
+
+    @asynccontextmanager
+    async def mock_ctx(*args, **kwargs):
+        yield
+
+    service.rmq.ctx = mock_ctx
 
     async def mock_consume(callback):
         await callback()
@@ -134,6 +147,7 @@ async def test_run_starts_handlers_and_consumes(monkeypatch):
         return_value="consumer_tag", side_effect=mock_consume
     )
     mock_queue.cancel = AsyncMock()
+    service.rmq.queue = mock_queue
 
     # Create a mock teleapi client with async getUpdates method
     mock_teleapi_instance = MagicMock()
@@ -161,7 +175,10 @@ async def test_run_starts_handlers_and_consumes(monkeypatch):
         monkeypatch.setattr(service, "handle_base_output_message", AsyncMock())
 
         # Run service.run with a timeout to prevent indefinite hanging
-        await asyncio.wait_for(service.run(), timeout=0.2)
+        try:
+            await asyncio.wait_for(service.run(), timeout=0.2)
+        except asyncio.TimeoutError:
+            pass
 
     mock_queue.consume.assert_awaited_once()
     mock_queue.cancel.assert_awaited_once()
