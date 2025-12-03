@@ -317,4 +317,7 @@ class Service:
 
 if __name__ == "__main__":
     service = Service()
-    asyncio.run(service.run())
+    try:
+        asyncio.run(service.run())
+    except asyncio.CancelledError:
+        pass
