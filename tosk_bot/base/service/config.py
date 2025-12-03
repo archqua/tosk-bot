@@ -1,6 +1,9 @@
 from functools import lru_cache
-from pydantic import AnyUrl, Field
+
+from pydantic import AnyUrl, Field, constr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+Token = constr(strip_whitespace=True, min_length=1)
 
 
 class Settings(BaseSettings):
@@ -11,7 +14,7 @@ class Settings(BaseSettings):
     env_prefix: TOSK_BOT_BASE_
     """
 
-    telegram_api_token: str = Field(..., description="Telegram bot API token")
+    telegram_api_token: Token = Field(..., description="Telegram bot API token")
     rabbitmq_url: AnyUrl = Field(..., description="RabbitMQ connection URL")
 
     # TODO configure tgio.Input and tgil.Output instances
