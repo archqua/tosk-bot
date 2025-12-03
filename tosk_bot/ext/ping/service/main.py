@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import signal
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Awaitable, Callable
@@ -182,8 +183,26 @@ class Service:
 
 
 if __name__ == "__main__":
-    service = Service()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # TODO this might be unreliable
+    # Graceful shutdown function
+    def shutdown():
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+
+    # Register signal handlers to catch termination signals
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shutdown)
+
     try:
-        asyncio.run(service.run())
+        service = Service()
+        loop.run_until_complete(service.run())
     except asyncio.CancelledError:
         pass
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
