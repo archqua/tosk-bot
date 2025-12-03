@@ -40,6 +40,6 @@ CREATED="$(date -Iseconds)"
 # Export for compose.yaml interpolation
 export USERNAME TAG
 export TITLE VERSION DESCRIPTION LICENSE SOURCE REVISION CREATED
-podman-compose build --build-args="\"${BUILD_LABELS}\""
+podman-compose build
 podman-compose push
 
