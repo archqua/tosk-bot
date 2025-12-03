@@ -137,16 +137,17 @@ class Input:
                 notify_event.set()
             try:
                 while True:
-                    updates = await self.teleapi.getUpdates(
-                        offset=offset,
-                        timeout=self.timeout,
-                        limit=self.limit,
-                    )
-                    # having a list of situations when this can happen would be nice
-                    if updates is None:
-                        continue
-                    updates = list(updates)
-                    nupd = len(updates)
+                    try:
+                        updates = await self.teleapi.getUpdates(
+                            offset=offset,
+                            timeout=self.timeout,
+                            limit=self.limit,
+                        )
+                        updates = list(updates)
+                        nupd = len(updates)
+                    except httpx.ReadTimeout:
+                        updates = list()
+                        nupd = 0
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
                     updates = sorted(updates, key=lambda u: u.update_id)
 
