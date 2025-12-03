@@ -14,7 +14,9 @@ services:
       timeout: 10s
       retries: 5
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_data:/var/lib/rabbitmq/
+      - rabbitmq_logs:/var/log/rabbitmq/
+    restart: unless-stopped
 
   base-service:
     image: ${USERNAME}/tosk-bot-base:${TAG:-latest}
@@ -34,7 +36,7 @@ services:
         condition: service_healthy
     environment:
       TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
-      TOSK_BOT_TELEGRAM_API_TOKEN: ${TOSK_BOT_TELEGRAM_API_TOKEN}
+      TOSK_BOT_BASE_TELEGRAM_API_TOKEN: ${TOSK_BOT_BASE_TELEGRAM_API_TOKEN:?MISSING TELEGRAM BOT TOKEN}
     restart: unless-stopped
 
   ping-service:
@@ -55,8 +57,8 @@ services:
         condition: service_healthy
     environment:
       TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
-      TOSK_BOT_TELEGRAM_API_TOKEN: ${TOSK_BOT_TELEGRAM_API_TOKEN}
     restart: unless-stopped
 
 volumes:
   rabbitmq_data:
+  rabbitmq_logs:

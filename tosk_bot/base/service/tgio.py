@@ -103,7 +103,11 @@ class Input:
         """
         try:
             while True:
-                upd = await asyncio.wait_for(self.upd_queue.get(), timeout=1)
+                try:
+                    upd = await asyncio.wait_for(self.upd_queue.get(), timeout=1)
+                except asyncio.TimeoutError:
+                    logger.debug(f"No updates awailable for worker '{name}'")
+                    continue
                 logger.debug(f"Input worker '{name}' got an update from a queue")
                 await self.handler(upd)
                 self.upd_queue.task_done()
