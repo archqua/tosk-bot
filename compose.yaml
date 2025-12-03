@@ -15,6 +15,17 @@ services:
 
   base-service:
     image: ${USERNAME}/tosk-bot-base:${TAG}
+    build:
+      context: .
+      labels:
+        - "org.opencontainers.image.title=${TITLE}"
+        - "org.opencontainers.image.version=${VERSION}"
+        - "org.opencontainers.image.description=${DESCRIPTION}"
+        - "org.opencontainers.image.licenses=${LICENSE}"
+        - "org.opencontainers.image.source=${SOURCE}"
+        - "org.opencontainers.image.revision=${REVISION}"
+        - "org.opencontainers.image.created=${CREATED}"
+      dockerfile: tosk_bot/base/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -24,6 +35,17 @@ services:
 
   ping-service:
     image: ${USERNAME}/tosk-bot-ext-ping:${TAG}
+    build:
+      context: .
+      labels:
+        - "org.opencontainers.image.title=${TITLE}"
+        - "org.opencontainers.image.version=${VERSION}"
+        - "org.opencontainers.image.description=${DESCRIPTION}"
+        - "org.opencontainers.image.licenses=${LICENSE}"
+        - "org.opencontainers.image.source=${SOURCE}"
+        - "org.opencontainers.image.revision=${REVISION}"
+        - "org.opencontainers.image.created=${CREATED}"
+      dockerfile: tosk_bot/ext/ping/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
