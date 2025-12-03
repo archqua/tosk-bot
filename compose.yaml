@@ -1,20 +1,23 @@
 services:
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
-      - "5672:5672"     # AMQP port for Python services
-      - "15672:15672"   # RabbitMQ management UI (optional)
+      - "${RMQ_AMQP_PORT:-5672}:5672"     # AMQP port for Python services
+      - "${RMQ_UI_PORT:-15672}:15672"   # RabbitMQ management UI (optional)
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RMQ_PASS:-guest}
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
       timeout: 10s
       retries: 5
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   base-service:
-    image: ${USERNAME}/tosk-bot-base:${TAG}
+    image: ${USERNAME}/tosk-bot-base:${TAG:-latest}
     build:
       context: .
       labels:
@@ -30,11 +33,12 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      TOSK_BOT_BASE_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
+      TOSK_BOT_TELEGRAM_API_TOKEN: ${TOSK_BOT_TELEGRAM_API_TOKEN}
     restart: unless-stopped
 
   ping-service:
-    image: ${USERNAME}/tosk-bot-ext-ping:${TAG}
+    image: ${USERNAME}/tosk-bot-ext-ping:${TAG:-latest}
     build:
       context: .
       labels:
@@ -50,5 +54,9 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      TOSK_BOT_BASE_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
+      TOSK_BOT_TELEGRAM_API_TOKEN: ${TOSK_BOT_TELEGRAM_API_TOKEN}
     restart: unless-stopped
+
+volumes:
+  rabbitmq_data:

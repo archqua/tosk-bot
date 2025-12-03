@@ -41,5 +41,8 @@ CREATED="$(date -Iseconds)"
 export USERNAME TAG
 export TITLE VERSION DESCRIPTION LICENSE SOURCE REVISION CREATED
 podman-compose build
+read -s -p "Enter dockerhub password: " PASSWORD
+printf "%s" "$PASSWORD" | podman login --username "$USERNAME" --password-stdin
+unset PASSWORD
 podman-compose push
 
