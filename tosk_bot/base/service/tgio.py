@@ -232,28 +232,31 @@ class Output:
                 method, payload = await self.upd_queue.get()
                 logger.debug(f"Output worker '{name}' got an update from a queue")
                 try:
-                    response = await getattr(self.teleapi, method)(payload)
+                    # TODO timeout
+                    response = await getattr(self.teleapi, method)(**payload)
+                    if self.response_queue is not None:
+                        try:
+                            await asyncio.wait_for(
+                                self.response_queue.put(
+                                    Response(
+                                        method=method,
+                                        contents=response,
+                                    )
+                                ),
+                                timeout=1,
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(
+                                f"Response queue is full, discarding {method}'s response"
+                            )
+                except TypeError as e:
+                    logger.error(f"Bad payload (probably): {e}")
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Teleapi/{method} HTTP status error: {e}")
                 except httpx.RequestError as e:
                     logger.error(f"Teleapi/{method} HTTP request error: {e}")
                 except Exception as e:
                     logger.error(f"Teleapi/{method} unexpected error: {e}")
-                if self.response_queue is not None:
-                    try:
-                        await asyncio.wait_for(
-                            self.response_queue.put(
-                                Response(
-                                    method=method,
-                                    contents=response,
-                                )
-                            ),
-                            timeout=1,
-                        )
-                    except asyncio.TimeoutError:
-                        logger.error(
-                            f"Response queue is full, discarding {method}'s response"
-                        )
                 self.upd_queue.task_done()
         finally:
             logger.info(f"Cancelled an Output worker '{name}'")

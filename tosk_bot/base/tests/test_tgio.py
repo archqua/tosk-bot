@@ -1,7 +1,7 @@
 import asyncio
-import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from base.service import tgio
 from teleapi.teleapi import Update
 
@@ -73,7 +73,7 @@ async def test_output_worker_calls_teleapi_methods_and_handles_cancel(monkeypatc
     teleapi_mock = AsyncMock()
     called_payloads = []
 
-    async def mock_method(payload):
+    async def mock_method(**payload):
         called_payloads.append(payload)
 
     teleapi_mock.sendMessage = mock_method
@@ -141,7 +141,7 @@ async def test_output_handle_accepts_external_updates(monkeypatch):
     teleapi_mock = AsyncMock()
     called_payloads = []
 
-    async def mock_method(payload):
+    async def mock_method(**payload):
         called_payloads.append(payload)
 
     teleapi_mock.sendMessage = mock_method
