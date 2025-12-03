@@ -29,8 +29,7 @@ async def test_publish_pong_calls_exchange_publish(service):
     service.rmq.exchange.publish = AsyncMock()
 
     chat_id = 123
-    reply_id = 456
-    await service.publish_pong(chat_id, reply_id)
+    await service.publish_pong(chat_id)
 
     service.rmq.exchange.publish.assert_awaited_once()
     args, kwargs = service.rmq.exchange.publish.call_args
@@ -41,7 +40,6 @@ async def test_publish_pong_calls_exchange_publish(service):
     body = json.loads(message.body.decode())
     assert body["chat_id"] == chat_id
     assert body["text"] == "pong"
-    assert body["reply_to_message_id"] == reply_id
 
 
 @pytest.mark.asyncio
@@ -72,9 +70,7 @@ async def test_pong_handles_incoming_message(service):
 
     await service.pong(message)
 
-    service.publish_pong.assert_awaited_once_with(
-        chat_id=chat_id, reply_to_message_id=message_id
-    )
+    service.publish_pong.assert_awaited_once_with(chat_id=chat_id)
 
 
 @pytest.mark.asyncio

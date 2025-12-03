@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 import aio_pika as RMQ
-from aiormq import ChannelInvalidStateError
+from aiormq import AMQPConnectionError, ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
@@ -98,13 +98,12 @@ class Service:
         async with self.rmq.ctx(rabbitmq_url=self.settings.rabbitmq_url):
             yield
 
-    async def publish_pong(self, chat_id: int, reply_to_message_id: int | None = None):
+    async def publish_pong(self, chat_id: int):
         """
         Publish a Telegram 'pong' message to RabbitMQ to respond to a /ping command.
 
         Args:
             chat_id: Telegram chat ID to send the pong message to.
-            reply_to_message_id: Message ID to reply to, enables Telegram threaded response.
         """
         method = "sendMessage"
         # TODO waiting for external implementation
@@ -113,7 +112,6 @@ class Service:
         payload = dict(
             chat_id=chat_id,
             text="pong",
-            reply_to_message_id=reply_to_message_id,
         )
         # TODO waiting for external implementation
         # message_body = json.dumps(payload.model_dump(), default=pydantic_encoder).encode()
@@ -139,7 +137,6 @@ class Service:
                 tg_message = TG.Message.model_validate(payload)
                 await self.publish_pong(
                     chat_id=tg_message.chat.id,
-                    reply_to_message_id=tg_message.message_id,
                 )
             except Exception as e:
                 logger.error(f"Failed to process ping message: {e}")
@@ -166,7 +163,7 @@ class Service:
             try:
                 await self.rmq.queue.cancel(consumer_tag)
                 logger.info("Queue consumption cancelled")
-            except ChannelInvalidStateError as e:
+            except (ChannelInvalidStateError, AMQPConnectionError) as e:
                 logger.warning(f"{e}")
 
     async def run(self) -> None:

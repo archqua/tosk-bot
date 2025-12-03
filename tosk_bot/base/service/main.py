@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import aio_pika as RMQ
-from aiormq import ChannelInvalidStateError
+from aiormq import AMQPConnectionError, ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
@@ -267,7 +267,7 @@ class Service:
             try:
                 await self.rmq.queue.cancel(consumer_tag)
                 logger.info("Queue consumption cancelled")
-            except ChannelInvalidStateError as e:
+            except (ChannelInvalidStateError, AMQPConnectionError) as e:
                 logger.warning(f"{e}")
 
     async def run(self) -> None:
