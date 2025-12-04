@@ -179,6 +179,7 @@ class Service:
         async with self.rmq_ctx():
             try:
                 async with self.consume_queue(self.pong):
+                    logger.info("Started consuming RabbitMQ queue")
                     await asyncio.Future()
             finally:
                 logger.info("Ping extension service canceled")
