@@ -320,23 +320,26 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    # TODO this might be unreliable
-    # Graceful shutdown function
-    def shutdown():
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+    def cancel_run(run: asyncio.Task[None]) -> None:
+        # TODO async logging
+        run.cancel()
 
-    # Register signal handlers to catch termination signals
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown)
-
+    service = Service()
+    run_task = loop.create_task(service.run())
     try:
-        service = Service()
-        loop.run_until_complete(service.run())
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
+        loop.run_until_complete(run_task)
     except asyncio.CancelledError:
         pass
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        cancel_run(run_task)
     finally:
+        # await cancelled coro
+        loop.run_until_complete(run_task)
+
+        # Shutdown async generators
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
+        logger.info("Event loop closed cleanly")
