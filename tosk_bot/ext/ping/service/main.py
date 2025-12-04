@@ -70,8 +70,10 @@ class RabbitMQContext:
     @asynccontextmanager
     async def ctx(self, rabbitmq_url: AnyUrl) -> None:
         await self.connect(rabbitmq_url)
-        yield
-        await self.disconnect()
+        try:
+            yield
+        finally:
+            await self.disconnect()
 
 
 class Service:
