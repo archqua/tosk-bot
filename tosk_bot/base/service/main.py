@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import logging
 import signal
@@ -336,9 +337,10 @@ if __name__ == "__main__":
         logger.error(f"Unexpected error: {e}")
         cancel_run(run_task)
     finally:
-        # await cancelled coro
-        loop.run_until_complete(run_task)
-
+        try:
+            loop.run_until_complete(run_task)
+        except asyncio.CancelledError:
+            pass
         # Shutdown async generators
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
