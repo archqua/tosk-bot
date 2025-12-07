@@ -28,6 +28,12 @@ if [ -z "$USERNAME" ]; then
   exit 1
 fi
 
+# ensure all changes are staged and commited
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  echo "Error: Uncommitted changes detected. Commit or stash changes before releasing." >&2
+  exit 1
+fi
+
 # labels
 TITLE="$(grep -oP '^name\s*=\s*"\K[^"]+' pyproject.toml)"
 VERSION="$(poetry version -s)"
