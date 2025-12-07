@@ -267,7 +267,7 @@ class Service(aiomisc.service.ProcessService):
         # consumer
         self._proxy = ServiceProxy.from_service(self)
         self.rmq._consumer_tag = await self.rmq.queue.consume(
-            self_proxy.handle_base_output_message
+            self._proxy.handle_base_output_message
         )
 
     async def in_process(self) -> Any:
