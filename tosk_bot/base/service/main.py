@@ -295,8 +295,14 @@ class Service(aiomisc.Service):
     async def stop(self, exception: Exception = None) -> Any:
         # cancel input task and output task
         while len(self._tasks) > 0:
-            self._tasks.pop().cancel()
-        # await self.rmq.queue.cancel(self.rmq._consumer_tag)
+            task = self._tasks.pop()
+            task.cancel()
+            # looks absolutely terrible but i don't have a better idea
+            res = asyncio.gather(
+                asyncio.wait_for(task, timeout=1.0), return_exceptions=True
+            )
+            if isinstance(res, Exception):
+                logger.error(f"Failed to cancel IO task {len(self._tasks)}: {res}")
         await self.rmq.disconnect()
 
 

@@ -136,7 +136,6 @@ class Service(aiomisc.Service):
         self.rmq._consumer_tag = await self.rmq.queue.consume(self._proxy.pong)
 
     async def stop(self, exception: Exception = None) -> Any:
-        # await self.rmq.queue.cancel(self.rmq._consumer_tag)
         await self.rmq.disconnect()
 
 
