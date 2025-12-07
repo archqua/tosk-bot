@@ -180,12 +180,12 @@ class Service(aiomisc.Service):
     async def start(self) -> None:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
-        self.rmq.connect(self.settings.rabbitmq_url)
+        await self.rmq.connect(self.settings.rabbitmq_url)
         self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
 
     async def stop(self) -> None:
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)
-        self.rmq.disconnect()
+        await self.rmq.disconnect()
 
     async def run(self) -> None:
         """

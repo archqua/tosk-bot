@@ -334,7 +334,12 @@ class Service(aiomisc.Service):
     async def start(self) -> None:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
-        self.rmq.connect(self.settings.rabbitmq_url)
+        await self.rmq.connect(self.settings.rabbitmq_url)
+
+        # IO
+        async def input_handler(update: TG.Update | Response) -> None:
+            return await self.tgio_input_handler(update)
+
         self.input_instance = Input(
             token=self.settings.telegram_api_token,
             handler=input_handler,
@@ -343,6 +348,7 @@ class Service(aiomisc.Service):
             token=self.settings.telegram_api_token,
             response_queue=self.input_instance.upd_queue,
         )
+        # consumer
         self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
         # finally start io tasks
         self._tasks = []
@@ -370,7 +376,7 @@ class Service(aiomisc.Service):
         # cancel output task
         self._tasks.pop().cancel()
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)
-        self.rmq.disconnect()
+        await self.rmq.disconnect()
 
 
 if __name__ == "__main__":
