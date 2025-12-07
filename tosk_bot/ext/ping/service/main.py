@@ -133,8 +133,8 @@ class Service(aiomisc.service.ProcessService):
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
         await self.rmq.connect(self.settings.rabbitmq_url)
-        self._runner = ServiceProxy.from_service(self)
-        self.rmq._consumer_tag = await self.rmq.queue.consume(self._runner.pong)
+        self._proxy = ServiceProxy.from_service(self)
+        self.rmq._consumer_tag = await self.rmq.queue.consume(self._proxy.pong)
 
     async def in_process(self) -> Any:
         await asyncio.Future()
