@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -120,7 +119,7 @@ class ServiceProxy:
         return cls(service.settings, service.rmq)
 
 
-class Service(aiomisc.service.ProcessService):
+class Service(aiomisc.Service):
     """
     Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
 
@@ -135,9 +134,6 @@ class Service(aiomisc.service.ProcessService):
         await self.rmq.connect(self.settings.rabbitmq_url)
         self._proxy = ServiceProxy.from_service(self)
         self.rmq._consumer_tag = await self.rmq.queue.consume(self._proxy.pong)
-
-    async def in_process(self) -> Any:
-        await asyncio.Future()
 
     async def stop(self, exception: Exception = None) -> Any:
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)

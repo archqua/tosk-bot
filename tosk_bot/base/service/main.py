@@ -236,7 +236,7 @@ class ServiceProxy:
 
 
 # TODO exception handling
-class Service(aiomisc.service.ProcessService):
+class Service(aiomisc.Service):
     """
     Main service managing Telegram bot input/output integration with RabbitMQ.
 
@@ -253,10 +253,13 @@ class Service(aiomisc.service.ProcessService):
         await self.rmq.connect(self.settings.rabbitmq_url)
 
         # IO
+        async def input_handler(update: TG.Update | Response) -> None:
+            # self._proxy is essentially a fwd ref at this point
+            return await self._proxy.tgio_input_handler(update)
+
         self.input_instance = Input(
             token=self.settings.telegram_api_token,
-            # delaying until proxy is available in `in_process`
-            handler=None,
+            handler=input_handler,
         )
         self.output_instance = Output(
             token=self.settings.telegram_api_token,
@@ -267,38 +270,32 @@ class Service(aiomisc.service.ProcessService):
         self.rmq._consumer_tag = await self.rmq.queue.consume(
             self._proxy.handle_base_output_message
         )
-
-    async def in_process(self) -> Any:
-        """
-        Main entry point to run the service.
-
-        Connects to RabbitMQ, initializes input/output handlers, and
-        starts consuming and processing messages asynchronously.
-
-        This method runs indefinitely until cancelled or an exception occurs.
-        """
-
-        async def input_handler(update: TG.Update | Response) -> None:
-            return await self._proxy.tgio_input_handler(update)
-
-        async with asyncio.TaskGroup() as task_group:
-            tasks_created = asyncio.Event()
-            task_group.create_task(
+        # start IO tasks
+        self._tasks = []
+        tasks_created = asyncio.Event()
+        self._tasks.append(
+            self.loop.create_task(
                 self.output_instance.handle(notify_event=tasks_created),
             )
-            await tasks_created.wait()
-            tasks_created.clear()
-            logger.info("Completed Output setup")
-            task_group.create_task(
+        )
+        await tasks_created.wait()
+        tasks_created.clear()
+        logger.info("Completed Output setup")
+        self._tasks.append(
+            self.loop.create_task(
                 self.input_instance.handle(
                     handler=input_handler, notify_event=tasks_created
                 ),
             )
-            await tasks_created.wait()
-            tasks_created.clear()
-            logger.info("Completed Input setup")
+        )
+        await tasks_created.wait()
+        tasks_created.clear()
+        logger.info("Completed Input setup")
 
     async def stop(self, exception: Exception = None) -> Any:
+        # cancel input task and output task
+        while len(self._tasks) > 0:
+            self._tasks.pop().cancel()
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)
         await self.rmq.disconnect()
 
