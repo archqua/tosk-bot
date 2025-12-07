@@ -16,6 +16,7 @@ dependencies = [
     "aio-pika (>=9.5.7,<10.0.0)",
     "pure-teleapi[httpx] @ git+https://github.com/archqua/pure-teleapi.git@pure",
     # "pure-teleapi[httpx]",
+    "aiomisc (>=17.9.9,<18.0.0)"
 ]
 
 [dependency-groups]

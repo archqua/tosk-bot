@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from ext.ping.service import config
-from ext.ping.service.main import Service
+from ext.ping.service.main import RabbitMQContext, Service
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
 
@@ -25,6 +25,9 @@ def service():
 @pytest.mark.asyncio
 async def test_publish_pong_calls_exchange_publish(service):
     # Setup exchange publish as AsyncMock
+    # moved from __init__ after migrating to aiomisc
+    # service.settings = config.get_settings()
+    service.rmq = RabbitMQContext()
     service.rmq.exchange = MagicMock()
     service.rmq.exchange.publish = AsyncMock()
 
@@ -78,6 +81,11 @@ async def test_consume_queue_context_manager(service):
     async def dummy_callback(msg):
         pass
 
+    # moved from __init__ after migrating to aiomisc
+    # service.settings = config.get_settings()
+    service.rmq = RabbitMQContext()
+    service.rmq.exchange = MagicMock()
+    service.rmq.exchange.publish = AsyncMock()
     service.rmq.queue = MagicMock()
     queue_mock = service.rmq.queue
     queue_mock.consume = AsyncMock(return_value="consumer_tag")

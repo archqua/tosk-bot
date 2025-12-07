@@ -17,6 +17,34 @@ aiormq = ">=6.8,<7.0"
 yarl = "*"
 
 [[package]]
+name = "aiomisc"
+version = "17.9.9"
+description = "aiomisc - miscellaneous utils for asyncio"
+optional = false
+python-versions = "<4.0,>=3.10"
+groups = ["main"]
+files = [
+    {file = "aiomisc-17.9.9-py3-none-any.whl", hash = "sha256:25c01e1cb09cd3a566c6d7f3c232554b0a0d094396c74ed8f0e88db971d32a53"},
+    {file = "aiomisc-17.9.9.tar.gz", hash = "sha256:73d76515ce9715a8536e0e841016f53a22a9149ff3973229df851025cf025ca6"},
+]
+
+[package.dependencies]
+colorlog = ">=6.0,<7.0"
+logging-journald = {version = "*", markers = "sys_platform == \"linux\""}
+
+[package.extras]
+aiohttp = ["aiohttp (>3)"]
+asgi = ["aiohttp-asgi (>=0.5.2,<0.6.0)"]
+carbon = ["aiocarbon (>=0.15,<0.16)"]
+cron = ["croniter (==2.0)"]
+dns = ["dnslib (>=0.9,<0.10)"]
+grpc = ["grpcio (>=1.56,<2.0)", "grpcio-reflection (>=1.56,<2.0)", "grpcio-tools (>=1.56,<2.0)"]
+raven = ["aiohttp (>3)", "raven"]
+rich = ["rich"]
+uvicorn = ["asgiref (>=3.7,<4.0)", "uvicorn (>=0.27,<0.28)"]
+uvloop = ["uvloop (>=0.21,<1)"]
+
+[[package]]
 name = "aiormq"
 version = "6.9.2"
 description = "Pure python AMQP asynchronous client library"
@@ -296,12 +324,30 @@ version = "0.4.6"
 description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
-groups = ["dev"]
-markers = "sys_platform == \"win32\" or platform_system == \"Windows\""
+groups = ["main", "dev"]
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
+markers = {main = "sys_platform == \"win32\"", dev = "sys_platform == \"win32\" or platform_system == \"Windows\""}
+
+[[package]]
+name = "colorlog"
+version = "6.10.1"
+description = "Add colours to the output of Python's logging module."
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "colorlog-6.10.1-py3-none-any.whl", hash = "sha256:2d7e8348291948af66122cff006c9f8da6255d224e7cf8e37d8de2df3bad8c9c"},
+    {file = "colorlog-6.10.1.tar.gz", hash = "sha256:eb4ae5cb65fe7fec7773c2306061a8e63e02efc2c72eba9d27b0fa23c94f1321"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
+
+[package.extras]
+development = ["black", "flake8", "mypy", "pytest", "types-colorama"]
 
 [[package]]
 name = "distlib"
@@ -466,6 +512,19 @@ files = [
 [package.extras]
 colors = ["colorama"]
 plugins = ["setuptools"]
+
+[[package]]
+name = "logging-journald"
+version = "0.6.11"
+description = "Pure python logging handler for writing logs to the journald using native protocol"
+optional = false
+python-versions = "<4.0,>=3.8"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "logging_journald-0.6.11-py3-none-any.whl", hash = "sha256:4d280eb0bddb4bf616297ee2428592b037618b6f0169c873f655aff92496c232"},
+    {file = "logging_journald-0.6.11.tar.gz", hash = "sha256:1741ae42cf8953e435489a82acf0e88bc21ad23351e867ca4453a354fc6d09e1"},
+]
 
 [[package]]
 name = "multidict"
@@ -1766,4 +1825,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<4.0"
-content-hash = "9cb76d4d5d0084cc604c5e000f8df865bf6e5d8794f3e94f2fb73d454817b97f"
+content-hash = "2fa6ad2a43b12f36363e14aba5bb1df564530df12e06bf920c31789a74284176"

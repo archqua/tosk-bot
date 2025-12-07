@@ -1,18 +1,17 @@
 import asyncio
-import functools
 import json
 import logging
-import signal
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import aio_pika as RMQ
+import aiomisc
 from aiormq import AMQPConnectionError, ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
 
-from .config import get_settings
+from .config import Settings, get_settings
 from .tgio import Input, Output, Response
 
 logging.basicConfig(level=logging.INFO)
@@ -56,8 +55,8 @@ class RabbitMQContext:
 
     async def disconnect(self) -> None:
         logger.info("Disconnecting from RabbitMQ")
-        if self.channel:
-            await self.channel.close()
+        # if self.channel:
+        #     await self.channel.close()
         if self.connection:
             await self.connection.close()
             logger.info("Disconnected from RabbitMQ")
@@ -74,7 +73,7 @@ class RabbitMQContext:
 
 
 # TODO exception handling
-class Service:
+class Service(aiomisc.Service):
     """
     Main service managing Telegram bot input/output integration with RabbitMQ.
 
@@ -85,12 +84,18 @@ class Service:
         output_instance: Instance of Output handler for sending Telegram responses.
     """
 
-    def __init__(self) -> None:
-        """Initialize service with configuration and uninitialized handlers."""
-        self.settings = get_settings()
-        self.rmq = RabbitMQContext()
-        self.input_instance = None
-        self.output_instance = None
+    # these are not kwargs actually - should i remove them?
+    settings: Settings | None = None
+    rmq: RabbitMQContext | None = None
+    input_instance: Input | None = None
+    output_instance: Output | None = None
+    _tasks: list[asyncio.Task[None]] | None = None
+    # def __init__(self) -> None:
+    #     """Initialize service with configuration and uninitialized handlers."""
+    #     self.settings = get_settings()
+    #     self.rmq = RabbitMQContext()
+    #     self.input_instance = None
+    #     self.output_instance = None
 
     @asynccontextmanager
     async def rmq_ctx(self) -> None:
@@ -285,6 +290,12 @@ class Service:
 
         This method runs indefinitely until cancelled or an exception occurs.
         """
+        # moved from __init__ after migrating to aiomisc
+        # conditionals are needed for testing
+        if self.settings is None:
+            self.settings = get_settings()
+        if self.rmq is None:
+            self.rmq = RabbitMQContext()
 
         async def input_handler(update: TG.Update | Response) -> None:
             return await self.tgio_input_handler(update)
@@ -320,32 +331,75 @@ class Service:
             finally:
                 logger.info("Cancelling base service")
 
+    async def start(self) -> None:
+        self.settings = get_settings()
+        self.rmq = RabbitMQContext()
+        self.rmq.connect(self.settings.rabbitmq_url)
+        self.input_instance = Input(
+            token=self.settings.telegram_api_token,
+            handler=input_handler,
+        )
+        self.output_instance = Output(
+            token=self.settings.telegram_api_token,
+            response_queue=self.input_instance.upd_queue,
+        )
+        self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
+        # finally start io tasks
+        self._tasks = []
+        tasks_created = asyncio.Event()
+        self._tasks.append(
+            asyncio.create_task(
+                self.output_instance.handle(notify_event=tasks_created),
+            )
+        )
+        await tasks_created.wait()
+        tasks_created.clear()
+        logger.info("Completed Output setup")
+        self._tasks.append(
+            asyncio.create_task(
+                self.input_instance.handle(notify_event=tasks_created),
+            )
+        )
+        await tasks_created.wait()
+        tasks_created.clear()
+        logger.info("Completed Input setup")
+
+    async def stop(self) -> None:
+        # cancel input task
+        self._tasks.pop().cancel()
+        # cancel output task
+        self._tasks.pop().cancel()
+        # await self.rmq.queue.cancel(self.rmq._consumer_tag)
+        self.rmq.disconnect()
+
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    def cancel_run(run: asyncio.Task[None]) -> None:
-        # TODO async logging
-        run.cancel()
-
-    service = Service()
-    run_task = loop.create_task(service.run())
-    try:
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
-        loop.run_until_complete(run_task)
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        cancel_run(run_task)
-    finally:
-        try:
-            loop.run_until_complete(run_task)
-        except asyncio.CancelledError:
-            pass
-        # Shutdown async generators
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
-        logger.info("Event loop closed cleanly")
+    with aiomisc.entrypoint(Service()) as loop:
+        loop.run_forever()
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    #
+    # def cancel_run(run: asyncio.Task[None]) -> None:
+    #     # TODO async logging
+    #     run.cancel()
+    #
+    # service = Service()
+    # run_task = loop.create_task(service.run())
+    # try:
+    #     for sig in (signal.SIGINT, signal.SIGTERM):
+    #         loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
+    #     loop.run_until_complete(run_task)
+    # except asyncio.CancelledError:
+    #     pass
+    # except Exception as e:
+    #     logger.error(f"Unexpected error: {e}")
+    #     cancel_run(run_task)
+    # finally:
+    #     try:
+    #         loop.run_until_complete(run_task)
+    #     except asyncio.CancelledError:
+    #         pass
+    #     # Shutdown async generators
+    #     loop.run_until_complete(loop.shutdown_asyncgens())
+    #     loop.close()
+    #     logger.info("Event loop closed cleanly")

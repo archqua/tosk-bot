@@ -1,19 +1,18 @@
 import asyncio
-import functools
 import json
 import logging
-import signal
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 import aio_pika as RMQ
+import aiomisc
 from aiormq import AMQPConnectionError, ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
 from teleapi import teleapi as TG
 
-from .config import get_settings
+from .config import Settings, get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,8 +59,8 @@ class RabbitMQContext:
 
     async def disconnect(self) -> None:
         logger.info("Disconnecting from RabbitMQ")
-        if self.channel:
-            await self.channel.close()
+        # if self.channel:
+        #     await self.channel.close()
         if self.connection:
             await self.connection.close()
             logger.info("Disconnected from RabbitMQ")
@@ -77,7 +76,7 @@ class RabbitMQContext:
             await self.disconnect()
 
 
-class Service:
+class Service(aiomisc.Service):
     """
     Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
 
@@ -86,10 +85,13 @@ class Service:
         rmq: Instance of RabbitMQContext managing RabbitMQ resources.
     """
 
-    def __init__(self):
-        """Initialize service with settings and RabbitMQ context."""
-        self.settings = get_settings()
-        self.rmq = RabbitMQContext()
+    settings: Settings | None = None
+    rmq: RabbitMQContext | None = None
+
+    # def __init__(self):
+    #     """Initialize service with settings and RabbitMQ context."""
+    #     self.settings = get_settings()
+    #     self.rmq = RabbitMQContext()
 
     @asynccontextmanager
     async def rmq_ctx(self) -> None:
@@ -176,11 +178,13 @@ class Service:
                 logger.warning(f"Failed to cancel queue consumption: {e}")
 
     async def start(self) -> None:
-        self.rmq.connect()
+        self.settings = get_settings()
+        self.rmq = RabbitMQContext()
+        self.rmq.connect(self.settings.rabbitmq_url)
         self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
 
     async def stop(self) -> None:
-        await self.rmq.queue.cancel(self.rmq._consumer_tag)
+        # await self.rmq.queue.cancel(self.rmq._consumer_tag)
         self.rmq.disconnect()
 
     async def run(self) -> None:
@@ -189,6 +193,9 @@ class Service:
 
         Sets up RabbitMQ connection and queue consumption using `consume_queue` context manager.
         """
+        # moved from __init__ after migrating to aiomisc
+        self.settings = get_settings()
+        self.rmq = RabbitMQContext()
         async with self.rmq_ctx():
             try:
                 async with self.consume_queue(self.pong):
@@ -199,30 +206,32 @@ class Service:
 
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    def cancel_run(run: asyncio.Task[None]) -> None:
-        # TODO async logging
-        run.cancel()
-
-    service = Service()
-    run_task = loop.create_task(service.run())
-    try:
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
-        loop.run_until_complete(run_task)
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        cancel_run(run_task)
-    finally:
-        try:
-            loop.run_until_complete(run_task)
-        except asyncio.CancelledError:
-            pass
-        # Shutdown async generators
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
-        logger.info("Event loop closed cleanly")
+    with aiomisc.entrypoint(Service()) as loop:
+        loop.run_forever()
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    #
+    # def cancel_run(run: asyncio.Task[None]) -> None:
+    #     # TODO async logging
+    #     run.cancel()
+    #
+    # service = Service()
+    # run_task = loop.create_task(service.run())
+    # try:
+    #     for sig in (signal.SIGINT, signal.SIGTERM):
+    #         loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
+    #     loop.run_until_complete(run_task)
+    # except asyncio.CancelledError:
+    #     pass
+    # except Exception as e:
+    #     logger.error(f"Unexpected error: {e}")
+    #     cancel_run(run_task)
+    # finally:
+    #     try:
+    #         loop.run_until_complete(run_task)
+    #     except asyncio.CancelledError:
+    #         pass
+    #     # Shutdown async generators
+    #     loop.run_until_complete(loop.shutdown_asyncgens())
+    #     loop.close()
+    #     logger.info("Event loop closed cleanly")
