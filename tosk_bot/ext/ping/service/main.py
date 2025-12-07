@@ -1,9 +1,8 @@
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import Any
 
 import aio_pika as RMQ
 import aiomisc
@@ -67,43 +66,11 @@ class RabbitMQContext:
         else:
             logger.info("Already disconnected from RabbitMQ")
 
-    @asynccontextmanager
-    async def ctx(self, rabbitmq_url: AnyUrl) -> None:
-        await self.connect(rabbitmq_url)
-        try:
-            yield
-        finally:
-            await self.disconnect()
 
-
-class Service(aiomisc.Service):
-    """
-    Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
-
-    Attributes:
-        settings: Configuration settings loaded from environment or .env.
-        rmq: Instance of RabbitMQContext managing RabbitMQ resources.
-    """
-
-    settings: Settings | None = None
-    rmq: RabbitMQContext | None = None
-
-    # def __init__(self):
-    #     """Initialize service with settings and RabbitMQ context."""
-    #     self.settings = get_settings()
-    #     self.rmq = RabbitMQContext()
-
-    @asynccontextmanager
-    async def rmq_ctx(self) -> None:
-        """
-        Connects RabbitMQContext using configured URL.
-        Disconnects on context exit.
-
-        Raises:
-            Any exceptions from RabbitMQ connection failures will propagate.
-        """
-        async with self.rmq.ctx(rabbitmq_url=self.settings.rabbitmq_url):
-            yield
+@dataclass
+class ServiceProxy:
+    settings: Settings
+    rmq: RabbitMQContext
 
     async def publish_pong(self, chat_id: int):
         """
@@ -148,90 +115,35 @@ class Service(aiomisc.Service):
             except Exception as e:
                 logger.error(f"Failed to process ping message: {e}")
 
-    @asynccontextmanager
-    async def consume_queue(
-        self,
-        callback: Callable[[RMQ.IncomingMessage], Awaitable[None]],
-    ):
-        """
-        Async context manager that starts consuming a RabbitMQ queue and ensures graceful cleanup.
+    @classmethod
+    def from_service(cls, service: "Service") -> "ServiceProxy":
+        return cls(service.settings, service.rmq)
 
-        Args:
-            callback: Async callable to process each incoming message.
 
-        Yields:
-            None: Control is yielded to allow awaiting within context.
-        """
-        consumer_tag = await self.rmq.queue.consume(callback)
-        try:
-            yield
-        finally:
-            logger.info("Cancelling queue consumption")
-            try:
-                await self.rmq.queue.cancel(consumer_tag, timeout=1.0)
-                logger.info("Queue consumption cancelled")
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Failed to cancel queue consumption due to timeout (channel is probably reconnecting)"
-                )
-            except (ChannelInvalidStateError, AMQPConnectionError) as e:
-                logger.warning(f"Failed to cancel queue consumption: {e}")
+class Service(aiomisc.service.ProcessService):
+    """
+    Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
+
+    Attributes:
+        settings: Configuration settings loaded from environment or .env.
+        rmq: Instance of RabbitMQContext managing RabbitMQ resources.
+    """
 
     async def start(self) -> None:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
         await self.rmq.connect(self.settings.rabbitmq_url)
-        self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
+        self._runner = ServiceProxy.from_service(self)
+        self.rmq._consumer_tag = await self.rmq.queue.consume(self._runner.pong)
 
-    async def stop(self) -> None:
+    async def in_process(self) -> Any:
+        await asyncio.Future()
+
+    async def stop(self, exception: Exception = None) -> Any:
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)
         await self.rmq.disconnect()
-
-    async def run(self) -> None:
-        """
-        Main service entry point to connect and start consuming messages indefinitely.
-
-        Sets up RabbitMQ connection and queue consumption using `consume_queue` context manager.
-        """
-        # moved from __init__ after migrating to aiomisc
-        self.settings = get_settings()
-        self.rmq = RabbitMQContext()
-        async with self.rmq_ctx():
-            try:
-                async with self.consume_queue(self.pong):
-                    logger.info("Started consuming RabbitMQ queue")
-                    await asyncio.Future()
-            finally:
-                logger.info("Ping extension service canceled")
 
 
 if __name__ == "__main__":
     with aiomisc.entrypoint(Service()) as loop:
         loop.run_forever()
-    # loop = asyncio.new_event_loop()
-    # asyncio.set_event_loop(loop)
-    #
-    # def cancel_run(run: asyncio.Task[None]) -> None:
-    #     # TODO async logging
-    #     run.cancel()
-    #
-    # service = Service()
-    # run_task = loop.create_task(service.run())
-    # try:
-    #     for sig in (signal.SIGINT, signal.SIGTERM):
-    #         loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
-    #     loop.run_until_complete(run_task)
-    # except asyncio.CancelledError:
-    #     pass
-    # except Exception as e:
-    #     logger.error(f"Unexpected error: {e}")
-    #     cancel_run(run_task)
-    # finally:
-    #     try:
-    #         loop.run_until_complete(run_task)
-    #     except asyncio.CancelledError:
-    #         pass
-    #     # Shutdown async generators
-    #     loop.run_until_complete(loop.shutdown_asyncgens())
-    #     loop.close()
-    #     logger.info("Event loop closed cleanly")

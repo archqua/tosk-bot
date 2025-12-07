@@ -3,6 +3,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 import aio_pika as RMQ
 import aiomisc
@@ -72,42 +73,23 @@ class RabbitMQContext:
             await self.disconnect()
 
 
-# TODO exception handling
-class Service(aiomisc.Service):
-    """
-    Main service managing Telegram bot input/output integration with RabbitMQ.
+@dataclass
+class ServiceProxy:
+    """A storage for service methods that are not part os aiomisc service interface"""
 
-    Attributes:
-        settings: Application settings loaded from config.
-        rmq: RabbitMQ context instance.
-        input_instance: Instance of Input handler for Telegram updates.
-        output_instance: Instance of Output handler for sending Telegram responses.
-    """
-
-    # these are not kwargs actually - should i remove them?
     settings: Settings | None = None
     rmq: RabbitMQContext | None = None
     input_instance: Input | None = None
     output_instance: Output | None = None
-    _tasks: list[asyncio.Task[None]] | None = None
-    # def __init__(self) -> None:
-    #     """Initialize service with configuration and uninitialized handlers."""
-    #     self.settings = get_settings()
-    #     self.rmq = RabbitMQContext()
-    #     self.input_instance = None
-    #     self.output_instance = None
 
-    @asynccontextmanager
-    async def rmq_ctx(self) -> None:
-        """
-        Connects RabbitMQContext using configured URL.
-        Disconnects on context exit.
-
-        Raises:
-            Any exceptions from RabbitMQ connection failures will propagate.
-        """
-        async with self.rmq.ctx(rabbitmq_url=self.settings.rabbitmq_url):
-            yield
+    @classmethod
+    def from_service(cls, service: "Service") -> "ServiceProxy":
+        return cls(
+            settings=service.settings,
+            rmq=service.rmq,
+            input_instance=service.input_instance,
+            output_instance=service.output_instance,
+        )
 
     async def publish_user_text_message(self, user_message: TG.Message) -> None:
         """
@@ -252,84 +234,18 @@ class Service(aiomisc.Service):
             except Exception as e:
                 logger.error(f"Failed to process reply message: {e}")
 
-    @asynccontextmanager
-    async def consume_queue(
-        self,
-        callback: Callable[[RMQ.IncomingMessage], Awaitable[None]],
-    ):
-        """
-        Async context manager that starts consuming a RabbitMQ queue and ensures graceful cleanup.
 
-        Args:
-            callback: Async callable to process each incoming message.
+# TODO exception handling
+class Service(aiomisc.service.ProcessService):
+    """
+    Main service managing Telegram bot input/output integration with RabbitMQ.
 
-        Yields:
-            None: Control is yielded to allow awaiting within context.
-        """
-        consumer_tag = await self.rmq.queue.consume(callback)
-        try:
-            yield
-        finally:
-            logger.info("Cancelling queue consumption")
-            try:
-                await self.rmq.queue.cancel(consumer_tag, timeout=1.0)
-                logger.info("Queue consumption cancelled")
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Failed to cancel queue consumption due to timeout (channel is probably reconnecting)"
-                )
-            except (ChannelInvalidStateError, AMQPConnectionError) as e:
-                logger.warning(f"Failed to cancel queue consumption: {e}")
-
-    async def run(self) -> None:
-        """
-        Main entry point to run the service.
-
-        Connects to RabbitMQ, initializes input/output handlers, and
-        starts consuming and processing messages asynchronously.
-
-        This method runs indefinitely until cancelled or an exception occurs.
-        """
-        # moved from __init__ after migrating to aiomisc
-        # conditionals are needed for testing
-        if self.settings is None:
-            self.settings = get_settings()
-        if self.rmq is None:
-            self.rmq = RabbitMQContext()
-
-        async def input_handler(update: TG.Update | Response) -> None:
-            return await self.tgio_input_handler(update)
-
-        async with self.rmq_ctx():
-            # TODO use configuration
-            self.input_instance = Input(
-                token=self.settings.telegram_api_token,
-                handler=input_handler,
-            )
-            self.output_instance = Output(
-                token=self.settings.telegram_api_token,
-                response_queue=self.input_instance.upd_queue,
-            )
-
-            try:
-                async with self.consume_queue(self.handle_base_output_message):
-                    logger.info("Started consuming RabbitMQ queue")
-                    async with asyncio.TaskGroup() as task_group:
-                        tasks_created = asyncio.Event()
-                        task_group.create_task(
-                            self.output_instance.handle(notify_event=tasks_created),
-                        )
-                        await tasks_created.wait()
-                        tasks_created.clear()
-                        logger.info("Completed Output setup")
-                        task_group.create_task(
-                            self.input_instance.handle(notify_event=tasks_created),
-                        )
-                        await tasks_created.wait()
-                        tasks_created.clear()
-                        logger.info("Completed Input setup")
-            finally:
-                logger.info("Cancelling base service")
+    Attributes:
+        settings: Application settings loaded from config.
+        rmq: RabbitMQ context instance.
+        input_instance: Instance of Input handler for Telegram updates.
+        output_instance: Instance of Output handler for sending Telegram responses.
+    """
 
     async def start(self) -> None:
         self.settings = get_settings()
@@ -350,31 +266,32 @@ class Service(aiomisc.Service):
         )
         # consumer
         self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
-        # finally start io tasks
-        self._tasks = []
-        tasks_created = asyncio.Event()
-        self._tasks.append(
-            asyncio.create_task(
+
+    async def in_process(self) -> Any:
+        """
+        Main entry point to run the service.
+
+        Connects to RabbitMQ, initializes input/output handlers, and
+        starts consuming and processing messages asynchronously.
+
+        This method runs indefinitely until cancelled or an exception occurs.
+        """
+        async with asyncio.TaskGroup() as task_group:
+            tasks_created = asyncio.Event()
+            task_group.create_task(
                 self.output_instance.handle(notify_event=tasks_created),
             )
-        )
-        await tasks_created.wait()
-        tasks_created.clear()
-        logger.info("Completed Output setup")
-        self._tasks.append(
-            asyncio.create_task(
+            await tasks_created.wait()
+            tasks_created.clear()
+            logger.info("Completed Output setup")
+            task_group.create_task(
                 self.input_instance.handle(notify_event=tasks_created),
             )
-        )
-        await tasks_created.wait()
-        tasks_created.clear()
-        logger.info("Completed Input setup")
+            await tasks_created.wait()
+            tasks_created.clear()
+            logger.info("Completed Input setup")
 
-    async def stop(self) -> None:
-        # cancel input task
-        self._tasks.pop().cancel()
-        # cancel output task
-        self._tasks.pop().cancel()
+    async def stop(self, exception: Exception = None) -> Any:
         # await self.rmq.queue.cancel(self.rmq._consumer_tag)
         await self.rmq.disconnect()
 
@@ -382,30 +299,3 @@ class Service(aiomisc.Service):
 if __name__ == "__main__":
     with aiomisc.entrypoint(Service()) as loop:
         loop.run_forever()
-    # loop = asyncio.new_event_loop()
-    # asyncio.set_event_loop(loop)
-    #
-    # def cancel_run(run: asyncio.Task[None]) -> None:
-    #     # TODO async logging
-    #     run.cancel()
-    #
-    # service = Service()
-    # run_task = loop.create_task(service.run())
-    # try:
-    #     for sig in (signal.SIGINT, signal.SIGTERM):
-    #         loop.add_signal_handler(sig, functools.partial(cancel_run, run_task))
-    #     loop.run_until_complete(run_task)
-    # except asyncio.CancelledError:
-    #     pass
-    # except Exception as e:
-    #     logger.error(f"Unexpected error: {e}")
-    #     cancel_run(run_task)
-    # finally:
-    #     try:
-    #         loop.run_until_complete(run_task)
-    #     except asyncio.CancelledError:
-    #         pass
-    #     # Shutdown async generators
-    #     loop.run_until_complete(loop.shutdown_asyncgens())
-    #     loop.close()
-    #     logger.info("Event loop closed cleanly")
