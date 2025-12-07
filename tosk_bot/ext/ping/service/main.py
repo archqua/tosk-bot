@@ -145,5 +145,8 @@ class Service(aiomisc.service.ProcessService):
 
 
 if __name__ == "__main__":
-    with aiomisc.entrypoint(Service()) as loop:
+    with aiomisc.entrypoint(
+        Service(),
+        log_level="info",
+    ) as loop:
         loop.run_forever()
