@@ -2,73 +2,22 @@
 Studying containers and other stuff
 
 ## Usage
-### Docker
+### Compose
+See examples in `compose.yaml` (rabbitmq)
+and `compose.override.yaml`.
+`USERNAME` and `TAG` environment variables identify images to pull from dockerhub.
+`TOSK_BOT_BASE_TELEGRAM_API_TOKEN` stores bot token.
 ```bash
-docker pull archqua/tosk-bot:stable
-docker run --name tosk-bot \
-    [--log-opt max-size=16m] \
-    -e TOSK_BOT_TELEGRAM_API_TOKEN=<TELEGRAM_API_TOKEN> \
-    archqua/tosk-bot:stable
-docker rmi tosk-bot
+TOSK_BOT_BASE_TELEGRAM_API_TOKEN=$(pass tosk-bot/api) USERNAME=archqua podman-compose up
 ```
 
-Instead of `-e TOSK_BOT_TELEGRAM_API=...` can use
-`--env-file path/to/pydantic/env`.
+There's a convenience `release.sh` script to create and push images to dockerhub
+with configurable user name and tag.
+It fetches metadata from `poetry` and `git` to set labels.
+See `./release.sh -h` for usage.
 
-There's a convenience `docker-publish.sh` script to create and push images to dockerhub
-with configurable user name, docker image and tag.
-It feeds Dockerfile-stream to `docker build`
-and supplies metadata based on `git` commands output
---- you should probably only run it after fork
-if you change anything substantially,
-because otherwise it is going to point to the original repo.
-
-To verify metadata run
-```bash
-docker image inspect <USER>/<IMAGE>:<TAG> --format '{{json .Config.Labels}}' | jq
-```
-
-
-### Create ignition config
-Requires [butane](https://docs.fedoraproject.org/en-US/fedora-coreos/producing-ign/)
-```bash
-poetry run python butane/tosk-bot.py butane <SSH_KEY> <TELEGRAM_API_TOKEN> | \
-    butane --pretty --strict -o path/to/ignition/config.ign
-```
-
-E. g.
-```bash
-poetry run python butane/tosk-bot.py butane \
-    "$(cat $HOME/.ssh/key.pub)" \
-    "$(pass tosk-bot/api)" | \
-    butane --pretty --strict -o path/to/ignition/config.ign
-```
-
-For more options
-```bash
-poetry run python butane/tosk-bot.py butane --help
-NAME
-    tosk-bot.py butane
-
-SYNOPSIS
-    tosk-bot.py butane SSH_KEY TELEGRAM_API_TOKEN <flags>
-
-POSITIONAL ARGUMENTS
-    SSH_KEY
-    TELEGRAM_API_TOKEN
-
-FLAGS
-    --debug=DEBUG
-        Default: False
-    --dockerhub_username=DOCKERHUB_USERNAME
-        Default: 'archqua'
-    --docker_image=DOCKER_IMAGE
-        Default: 'tosk-bot'
-    -t, --tag=TAG
-        Default: 'stable'
-
-NOTES
-    You can also use flags syntax for POSITIONAL ARGUMENTS
-```
-
-[Tutorials](https://docs.fedoraproject.org/en-US/fedora-coreos/tutorial-setup/) show how to use ignition configs
+## TODO
+- [ ] use [RPC pattern](https://deepwiki.com/mosquito/aio-pika/5.1-rpc-pattern)
+    to call API methods
+- [ ] wait for responses during shutdown
+- [ ] fix tests
