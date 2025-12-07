@@ -66,7 +66,7 @@ class Input:
     def __init__(
         self,
         token: str,
-        handler: Handler,
+        handler: Handler | None = None,
         timeout: Timeout = 10,
         limit: Limit = 128,
         queue_size: int = 512,
@@ -92,7 +92,7 @@ class Input:
         self.n_workers = workers
         logger.info(f"User input handler created with token_hash = {tokenhash(token)}")
 
-    async def worker(self, name: str = "input") -> None:
+    async def worker(self, handler: Handler | None = None, name: str = "input") -> None:
         """
         Asynchronous worker coroutine that continuously processes updates from the queue.
 
@@ -101,6 +101,7 @@ class Input:
         Args:
             name: Optional worker identifier for logging.
         """
+        handler = handler or self.handler
         try:
             while True:
                 try:
@@ -109,13 +110,14 @@ class Input:
                     logger.debug(f"No updates awailable for worker '{name}'")
                     continue
                 logger.debug(f"Input worker '{name}' got an update from a queue")
-                await self.handler(upd)
+                await handler(upd)
                 self.upd_queue.task_done()
         finally:
             logger.info(f"Cancelled an Input worker '{name}'")
 
     async def handle(
         self,
+        handler: Handler | None = None,
         notify_event: asyncio.Event | None = None,
     ) -> None:
         """
@@ -128,11 +130,12 @@ class Input:
         Args:
             notify_event: Optional asyncio.Event to signal when workers have started.
         """
+        handler = handler or self.handler
         # TODO ensure in-order updates with n_workers >= 1
         offset = 0
         async with asyncio.TaskGroup() as task_group:
             for i in range(self.n_workers):
-                task_group.create_task(self.worker(f"input {i}"))
+                task_group.create_task(self.worker(handler=handler, name=f"input {i}"))
             if notify_event is not None:
                 notify_event.set()
             try:
