@@ -85,7 +85,7 @@ async def test_consume_queue_context_manager(service):
 
     async with service.consume_queue(dummy_callback):
         queue_mock.consume.assert_awaited_once()
-    queue_mock.cancel.assert_awaited_once_with("consumer_tag")
+    queue_mock.cancel.assert_awaited_once_with("consumer_tag", timeout=1.0)
 
 
 # TODO test run

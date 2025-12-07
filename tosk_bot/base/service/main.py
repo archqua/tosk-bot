@@ -267,10 +267,14 @@ class Service:
         finally:
             logger.info("Cancelling queue consumption")
             try:
-                await self.rmq.queue.cancel(consumer_tag)
+                await self.rmq.queue.cancel(consumer_tag, timeout=1.0)
                 logger.info("Queue consumption cancelled")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Failed to cancel queue consumption due to timeout (channel is probably reconnecting)"
+                )
             except (ChannelInvalidStateError, AMQPConnectionError) as e:
-                logger.warning(f"{e}")
+                logger.warning(f"Failed to cancel queue consumption: {e}")
 
     async def run(self) -> None:
         """

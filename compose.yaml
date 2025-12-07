@@ -1,7 +1,8 @@
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq
+    # somehow fixes .erlang.cookie access issue at first launch
+    user: rabbitmq
     ports:
       - "${RMQ_AMQP_PORT:-5672}:5672"     # AMQP port for Python services
       - "${RMQ_UI_PORT:-15672}:15672"   # RabbitMQ management UI (optional)
@@ -16,47 +17,6 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
       - rabbitmq_logs:/var/log/rabbitmq/
-    restart: unless-stopped
-
-  base-service:
-    image: ${USERNAME}/tosk-bot-base:${TAG:-latest}
-    build:
-      context: .
-      labels:
-        - "org.opencontainers.image.title=${TITLE}"
-        - "org.opencontainers.image.version=${VERSION}"
-        - "org.opencontainers.image.description=${DESCRIPTION}"
-        - "org.opencontainers.image.licenses=${LICENSE}"
-        - "org.opencontainers.image.source=${SOURCE}"
-        - "org.opencontainers.image.revision=${REVISION}"
-        - "org.opencontainers.image.created=${CREATED}"
-      dockerfile: tosk_bot/base/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
-      TOSK_BOT_BASE_TELEGRAM_API_TOKEN: ${TOSK_BOT_BASE_TELEGRAM_API_TOKEN}
-    restart: unless-stopped
-
-  ping-service:
-    image: ${USERNAME}/tosk-bot-ext-ping:${TAG:-latest}
-    build:
-      context: .
-      labels:
-        - "org.opencontainers.image.title=${TITLE}"
-        - "org.opencontainers.image.version=${VERSION}"
-        - "org.opencontainers.image.description=${DESCRIPTION}"
-        - "org.opencontainers.image.licenses=${LICENSE}"
-        - "org.opencontainers.image.source=${SOURCE}"
-        - "org.opencontainers.image.revision=${REVISION}"
-        - "org.opencontainers.image.created=${CREATED}"
-      dockerfile: tosk_bot/ext/ping/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
     restart: unless-stopped
 
 volumes:

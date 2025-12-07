@@ -1,0 +1,43 @@
+services:
+  base-service:
+    image: ${USERNAME}/tosk-bot-base:${TAG:-latest}
+    init: true
+    build:
+      context: .
+      labels:
+        - "org.opencontainers.image.title=${TITLE}"
+        - "org.opencontainers.image.version=${VERSION}"
+        - "org.opencontainers.image.description=${DESCRIPTION}"
+        - "org.opencontainers.image.licenses=${LICENSE}"
+        - "org.opencontainers.image.source=${SOURCE}"
+        - "org.opencontainers.image.revision=${REVISION}"
+        - "org.opencontainers.image.created=${CREATED}"
+      dockerfile: tosk_bot/base/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
+      TOSK_BOT_BASE_TELEGRAM_API_TOKEN: ${TOSK_BOT_BASE_TELEGRAM_API_TOKEN}
+    restart: unless-stopped
+
+  ping-service:
+    image: ${USERNAME}/tosk-bot-ext-ping:${TAG:-latest}
+    init: true
+    build:
+      context: .
+      labels:
+        - "org.opencontainers.image.title=${TITLE}"
+        - "org.opencontainers.image.version=${VERSION}"
+        - "org.opencontainers.image.description=${DESCRIPTION}"
+        - "org.opencontainers.image.licenses=${LICENSE}"
+        - "org.opencontainers.image.source=${SOURCE}"
+        - "org.opencontainers.image.revision=${REVISION}"
+        - "org.opencontainers.image.created=${CREATED}"
+      dockerfile: tosk_bot/ext/ping/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TOSK_BOT_BASE_RABBITMQ_URL: "amqp://${RMQ_USER:-guest}:${RMQ_PASS:-guest}@rabbitmq:5672/"
+    restart: unless-stopped
