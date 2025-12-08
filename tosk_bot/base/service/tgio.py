@@ -161,6 +161,9 @@ class Input:
                     except httpx.ReadTimeout:
                         updates = list()
                         nupd = 0
+                    except Exception as e:
+                        logger.error(f"Unexpected api failure: {e}")
+                        raise
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
                     updates = sorted(updates, key=lambda u: u.update_id)
 
