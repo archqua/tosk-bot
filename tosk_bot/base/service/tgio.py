@@ -161,10 +161,16 @@ class Input:
                     except httpx.ReadTimeout:
                         updates = list()
                         nupd = 0
+                    except httpx.ConnectError as e:
+                        logger.error(f"Teleapi/getUpdates HTTP connect error: {e}")
+                    except httpx.HTTPStatusError as e:
+                        logger.error(f"Teleapi/getUpdates HTTP status error: {e}")
+                    except httpx.RequestError as e:
+                        logger.error(f"Teleapi/getUpdates HTTP request error: {e}")
                     except Exception as e:
-                        # TODO hide token
-                        logger.error(f"Unexpected api failure: ({type(e)}) {e}")
-                        raise
+                        logger.error(
+                            f"Teleapi/getUpdates unexpected error: ({type(e)}) {e}"
+                        )
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
                     updates = sorted(updates, key=lambda u: u.update_id)
 
@@ -278,6 +284,8 @@ class Output:
                 # TODO hide token
                 except TypeError as e:
                     logger.error(f"Bad payload (probably): {e}")
+                except httpx.ConnectError as e:
+                    logger.error(f"Teleapi/{method} HTTP connect error: {e}")
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Teleapi/{method} HTTP status error: {e}")
                 except httpx.RequestError as e:
