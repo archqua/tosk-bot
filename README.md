@@ -22,3 +22,7 @@ See `./release.sh -h` for usage.
       to call API methods
 - [ ] wait for responses during shutdown
 - [ ] fix tests
+- [ ] add delay parameter to ping and test no-internet behavior for output handling
+- [ ] allow custom ping replies
+- [ ] add help ext service
+- [ ] add deps container to reuse dependencies

@@ -151,18 +151,25 @@ class Input:
             try:
                 while True:
                     try:
-                        updates = await self.teleapi.getUpdates(
-                            offset=offset,
-                            timeout=self.timeout,
-                            limit=self.limit,
-                        )
-                        updates = list(updates)
-                        nupd = len(updates)
+                        retry = True
+                        while retry:
+                            retry = False
+                            try:
+                                updates = await self.teleapi.getUpdates(
+                                    offset=offset,
+                                    timeout=self.timeout,
+                                    limit=self.limit,
+                                )
+                                updates = list(updates)
+                                nupd = len(updates)
+                            except httpx.ConnectError as e:
+                                retry = True
+                                logger.error(
+                                    f"Teleapi/getUpdates HTTP connect error: {e}"
+                                )
                     except httpx.ReadTimeout:
                         updates = list()
                         nupd = 0
-                    except httpx.ConnectError as e:
-                        logger.error(f"Teleapi/getUpdates HTTP connect error: {e}")
                     except httpx.HTTPStatusError as e:
                         logger.error(f"Teleapi/getUpdates HTTP status error: {e}")
                     except httpx.RequestError as e:
@@ -265,7 +272,15 @@ class Output:
                 logger.debug(f"Output worker '{name}' got an update from a queue")
                 try:
                     # TODO timeout
-                    response = await getattr(self.teleapi, method)(**payload)
+                    retry = True
+                    while retry:
+                        retry = False
+                        try:
+                            response = await getattr(self.teleapi, method)(**payload)
+                        except httpx.ConnectError as e:
+                            retry = True
+                            logger.error(f"Teleapi/{method} HTTP connect error: {e}")
+
                     if self.response_queue is not None:
                         try:
                             await asyncio.wait_for(
@@ -284,8 +299,6 @@ class Output:
                 # TODO hide token
                 except TypeError as e:
                     logger.error(f"Bad payload (probably): {e}")
-                except httpx.ConnectError as e:
-                    logger.error(f"Teleapi/{method} HTTP connect error: {e}")
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Teleapi/{method} HTTP status error: {e}")
                 except httpx.RequestError as e:
