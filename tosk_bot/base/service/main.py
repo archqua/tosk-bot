@@ -260,7 +260,7 @@ class ServiceProxy:
         self._tasks = []
         tasks_created = asyncio.Event()
         self._tasks.append(
-            self.loop.create_task(
+            asyncio.create_task(
                 self.output_instance.handle(notify_event=tasks_created),
             )
         )
@@ -268,7 +268,7 @@ class ServiceProxy:
         tasks_created.clear()
         logger.info("Completed Output setup")
         self._tasks.append(
-            self.loop.create_task(
+            asyncio.create_task(
                 self.input_instance.handle(
                     handler=input_handler, notify_event=tasks_created
                 ),

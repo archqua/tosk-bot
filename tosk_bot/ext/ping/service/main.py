@@ -76,8 +76,8 @@ class ServiceProxy:
         rmq: Instance of RabbitMQContext managing RabbitMQ resources.
     """
 
-    settings: Settings
-    rmq: RabbitMQContext
+    settings: Settings | None = None
+    rmq: RabbitMQContext | None = None
 
     async def publish_pong(self, chat_id: int):
         """
