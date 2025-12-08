@@ -221,7 +221,7 @@ class ServiceProxy:
                 # TODO create a dev module with utils
                 # expect base.output.{method}[.{tail}] format
                 method = routing_key[2]
-                # TODO come up with pydantic validation
+                # assume pydantic validation was performed by caller
                 try:
                     logger.info(f"Requesting {method} call")
                     await asyncio.wait_for(

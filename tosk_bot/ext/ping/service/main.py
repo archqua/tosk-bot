@@ -8,6 +8,7 @@ import aiomisc
 from aiormq import AMQPConnectionError, ChannelInvalidStateError
 from pydantic import AnyUrl
 from pydantic.json import pydantic_encoder
+from teleapi import Teleapi as TGM
 from teleapi import teleapi as TG
 
 from .config import Settings, get_settings
@@ -87,19 +88,15 @@ class ServiceProxy:
             chat_id: Telegram chat ID to send the pong message to.
         """
         method = "sendMessage"
-        # TODO waiting for external implementation
-        # payload = TG.sendMessagePayload(
-        # TODO TG.Message(...).model_dump()?
-        payload = dict(
+        payload = TGM.sendMessage.Payload(
             chat_id=chat_id,
             text="pong",
         )
-        # TODO waiting for external implementation
-        # message_body = json.dumps(payload.model_dump(), default=pydantic_encoder).encode()
-        message_body = json.dumps(payload, default=pydantic_encoder).encode()
+        message_body = json.dumps(
+            payload.model_dump(), default=pydantic_encoder
+        ).encode()
         message = RMQ.Message(body=message_body)
         routing_key = f"base.output.{method}"
-        # called from `pong` method, exceptions are handled there
         await self.rmq.exchange.publish(message, routing_key=routing_key)
         logger.info(f"Published pong message to chat {chat_id}")
 
