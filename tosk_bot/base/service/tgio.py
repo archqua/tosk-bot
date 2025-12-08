@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+from functools import lru_cache
 from typing import Any, Awaitable, Callable
 
 import httpx
@@ -91,6 +92,15 @@ class Input:
         self.upd_queue = asyncio.Queue(maxsize=queue_size)
         self.n_workers = workers
         logger.info(f"User input handler created with token_hash = {tokenhash(token)}")
+
+    @property
+    def _token(self):
+        return self.teleapi.transport.bot_token
+
+    @property
+    @lru_cache(maxsize=1)
+    def tokenhash(self):
+        return tokenhash(self._token)
 
     async def worker(self, handler: Handler | None = None, name: str = "input") -> None:
         """
@@ -219,6 +229,15 @@ class Output:
         self.n_workers = workers
         logger.info(f"Bot output handler created with token_hash = {tokenhash(token)}")
 
+    @property
+    def _token(self):
+        return self.teleapi.transport.bot_token
+
+    @property
+    @lru_cache(maxsize=1)
+    def tokenhash(self):
+        return tokenhash(self._token)
+
     async def worker(self, name: str = "output") -> None:
         """
         Async worker coroutine that continually sends updates from the queue using teleapi.
@@ -252,6 +271,7 @@ class Output:
                             logger.error(
                                 f"Response queue is full, discarding {method}'s response"
                             )
+                # TODO hide token
                 except TypeError as e:
                     logger.error(f"Bad payload (probably): {e}")
                 except httpx.HTTPStatusError as e:

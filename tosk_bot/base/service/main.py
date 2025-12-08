@@ -185,6 +185,7 @@ class ServiceProxy:
         try:
             await self.publish_api_response(response)
         except Exception as e:
+            # TODO hide token
             logger.error(f"Failed to publish api response: {e}")
 
     async def tgio_input_handler(self, inp: TG.Update | Response) -> None:
@@ -302,6 +303,8 @@ class Service(aiomisc.Service):
 
 
 if __name__ == "__main__":
+    # URLs contain bot token
+    logging.getLogger("httpx").propagate = False
     with aiomisc.entrypoint(
         Service(),
         log_level="info",
