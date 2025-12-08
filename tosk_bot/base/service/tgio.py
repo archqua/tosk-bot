@@ -162,6 +162,7 @@ class Input:
                         updates = list()
                         nupd = 0
                     except Exception as e:
+                        # TODO hide token
                         logger.error(f"Unexpected api failure: {e}")
                         raise
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
