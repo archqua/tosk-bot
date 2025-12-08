@@ -68,6 +68,14 @@ class RabbitMQContext:
 
 @dataclass
 class ServiceProxy:
+    """
+    Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
+
+    Attributes:
+        settings: Configuration settings loaded from environment or .env.
+        rmq: Instance of RabbitMQContext managing RabbitMQ resources.
+    """
+
     settings: Settings
     rmq: RabbitMQContext
 
@@ -114,29 +122,23 @@ class ServiceProxy:
             except Exception as e:
                 logger.error(f"Failed to process ping message: {e}")
 
-    @classmethod
-    def from_service(cls, service: "Service") -> "ServiceProxy":
-        return cls(service.settings, service.rmq)
-
-
-class Service(aiomisc.Service):
-    """
-    Ping service that listens for /ping commands on RabbitMQ and replies with 'pong' messages.
-
-    Attributes:
-        settings: Configuration settings loaded from environment or .env.
-        rmq: Instance of RabbitMQContext managing RabbitMQ resources.
-    """
-
     async def start(self) -> None:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
         await self.rmq.connect(self.settings.rabbitmq_url)
-        self._proxy = ServiceProxy.from_service(self)
-        self.rmq._consumer_tag = await self.rmq.queue.consume(self._proxy.pong)
+        self.rmq._consumer_tag = await self.rmq.queue.consume(self.pong)
 
     async def stop(self, exception: Exception = None) -> Any:
         await self.rmq.disconnect()
+
+
+class Service(aiomisc.Service):
+    async def start(self) -> None:
+        self._proxy = ServiceProxy()
+        await self._proxy.start()
+
+    async def stop(self, exception: Exception = None) -> Any:
+        await self._proxy.stop(exception)
 
 
 if __name__ == "__main__":

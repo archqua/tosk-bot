@@ -75,21 +75,21 @@ class RabbitMQContext:
 
 @dataclass
 class ServiceProxy:
-    """A storage for service methods that are not part os aiomisc service interface"""
+    """
+    Main service managing Telegram bot input/output integration with RabbitMQ.
+
+    Attributes:
+        settings: Application settings loaded from config.
+        rmq: RabbitMQ context instance.
+        input_instance: Instance of Input handler for Telegram updates.
+        output_instance: Instance of Output handler for sending Telegram responses.
+    """
 
     settings: Settings | None = None
     rmq: RabbitMQContext | None = None
     input_instance: Input | None = None
     output_instance: Output | None = None
-
-    @classmethod
-    def from_service(cls, service: "Service") -> "ServiceProxy":
-        return cls(
-            settings=service.settings,
-            rmq=service.rmq,
-            input_instance=service.input_instance,
-            output_instance=service.output_instance,
-        )
+    _tasks: list[asyncio.Task[None]] | None = None
 
     async def publish_user_text_message(self, user_message: TG.Message) -> None:
         """
@@ -155,6 +155,7 @@ class ServiceProxy:
         Args:
             update: Incoming Telegram Update object.
         """
+        # TODO deduplicate updates
         # currently only user text messages
         if update.message is not None:
             if update.message.text is not None:
@@ -234,19 +235,6 @@ class ServiceProxy:
             except Exception as e:
                 logger.error(f"Failed to process reply message: {e}")
 
-
-# TODO exception handling
-class Service(aiomisc.Service):
-    """
-    Main service managing Telegram bot input/output integration with RabbitMQ.
-
-    Attributes:
-        settings: Application settings loaded from config.
-        rmq: RabbitMQ context instance.
-        input_instance: Instance of Input handler for Telegram updates.
-        output_instance: Instance of Output handler for sending Telegram responses.
-    """
-
     async def start(self) -> None:
         self.settings = get_settings()
         self.rmq = RabbitMQContext()
@@ -254,8 +242,7 @@ class Service(aiomisc.Service):
 
         # IO
         async def input_handler(update: TG.Update | Response) -> None:
-            # self._proxy is essentially a fwd ref at this point
-            return await self._proxy.tgio_input_handler(update)
+            return await self.tgio_input_handler(update)
 
         self.input_instance = Input(
             token=self.settings.telegram_api_token,
@@ -266,9 +253,8 @@ class Service(aiomisc.Service):
             response_queue=self.input_instance.upd_queue,
         )
         # consumer
-        self._proxy = ServiceProxy.from_service(self)
         self.rmq._consumer_tag = await self.rmq.queue.consume(
-            self._proxy.handle_base_output_message
+            self.handle_base_output_message
         )
         # start IO tasks
         self._tasks = []
@@ -304,6 +290,15 @@ class Service(aiomisc.Service):
             if isinstance(res, Exception):
                 logger.error(f"Failed to cancel IO task {len(self._tasks)}: {res}")
         await self.rmq.disconnect()
+
+
+class Service(aiomisc.Service):
+    async def start(self) -> None:
+        self._proxy = ServiceProxy()
+        await self._proxy.start()
+
+    async def stop(self, exception: Exception = None) -> Any:
+        await self._proxy.stop(exception)
 
 
 if __name__ == "__main__":
