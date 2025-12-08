@@ -163,7 +163,7 @@ class Input:
                         nupd = 0
                     except Exception as e:
                         # TODO hide token
-                        logger.error(f"Unexpected api failure: {e}")
+                        logger.error(f"Unexpected api failure: ({type(e)}) {e}")
                         raise
                     logger.info(f"Got {nupd} incoming update{'s' if nupd != 1 else ''}")
                     updates = sorted(updates, key=lambda u: u.update_id)
@@ -283,7 +283,7 @@ class Output:
                 except httpx.RequestError as e:
                     logger.error(f"Teleapi/{method} HTTP request error: {e}")
                 except Exception as e:
-                    logger.error(f"Teleapi/{method} unexpected error: {e}")
+                    logger.error(f"Teleapi/{method} unexpected error: ({type(e)}) {e}")
                 self.upd_queue.task_done()
         finally:
             logger.info(f"Cancelled an Output worker '{name}'")
