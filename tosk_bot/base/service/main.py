@@ -117,10 +117,10 @@ class ServiceProxy:
                 routing_key += f".cmd.{cmd}"
         await self.rmq.exchange.publish(message, routing_key=routing_key)
         user = user_message.from_
-        if user is not None:
-            sender = f"@{user.username} ({user.id})"
+        if user is not None and len(user.username) > 0:
+            sender = f"@{user.username[0] + '*' * len(user.username[1:])}"
         else:
-            sender = "<UNK>"
+            sender = "[UNK]"
         logger.info(
             f"Published a {routing_key} message {user_message.message_id}"
             f" from user {sender} to RabbitMQ"
