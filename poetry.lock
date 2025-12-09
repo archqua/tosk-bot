@@ -370,7 +370,7 @@ httpx = ["httpx"]
 type = "git"
 url = "https://github.com/archqua/dirty-teleapi.git"
 reference = "dirty"
-resolved_reference = "fd64823829a596a1c6a16faa7ded611e8a6fc1f4"
+resolved_reference = "8ed394bdef78786a88b8e01690687a93fc2acc8f"
 
 [[package]]
 name = "distlib"
