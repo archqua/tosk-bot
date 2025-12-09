@@ -369,8 +369,8 @@ httpx = ["httpx"]
 [package.source]
 type = "git"
 url = "https://github.com/archqua/dirty-teleapi.git"
-reference = "dirty"
-resolved_reference = "8ed394bdef78786a88b8e01690687a93fc2acc8f"
+reference = "HEAD"
+resolved_reference = "df94a8fcf3814ddba5d67c8b4646294f0a5a11de"
 
 [[package]]
 name = "distlib"
@@ -1825,4 +1825,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<4.0"
-content-hash = "c4c1cafce54f105e9e37516a6bce2f8e2850ab505c872d55d9e6375439a3d76f"
+content-hash = "d9b3729fee88a23fa00ecddbc8a47de1f95b82ccbd6586e49579377e0aa0aa24"
